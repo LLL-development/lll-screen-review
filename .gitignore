@@ -25,3 +25,9 @@ dist-ssr
 
 # local scratch, not part of the project
 project-snapshot.md
+
+# Secrets. .env holds the model endpoint and any API key; .env.example
+# documents the variable names and is the only one that gets committed.
+.env
+.env.*
+!.env.example
