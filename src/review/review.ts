@@ -1,13 +1,14 @@
 import { finder } from '@medv/finder'
-import { isOurUi, markAsUi } from './ui'
+import { findElement, isOurUi, markAsUi } from './ui'
 import {
   mountHighlight,
   showHighlight,
   hideHighlight,
   highlightedElement,
 } from './highlight'
-import { addComment } from './store'
+import { addComment, type ReviewComment } from './store'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
+import { mountPins } from './pins'
 import './review.css'
 
 /**
@@ -31,6 +32,7 @@ export function startReviewTool(): void {
   document.body.appendChild(toggle)
   mountHighlight()
   mountPanel()
+  mountPins(openCommentReader)
 
   // Capture phase (the `true` argument) means these run before any handler the
   // page itself registered, so we can swallow clicks before a button or link
@@ -179,6 +181,56 @@ function closePopup(): void {
   popup?.remove()
   popup = null
   hideHighlight()
+}
+
+/**
+ * Opens a saved comment for reading, triggered by clicking its pin.
+ *
+ * This works whether or not review mode is on: pins stay on the page, so
+ * reading back what was said should not require arming the tool first.
+ */
+function openCommentReader(comment: ReviewComment): void {
+  closePopup()
+
+  const el = findElement(comment.selector)
+  if (el) showHighlight(el, comment.selector)
+
+  popup = markAsUi(document.createElement('div'))
+  popup.className = 'sr-popup sr-popup-read'
+  popup.innerHTML = `
+    <div class="sr-popup-head">
+      <span class="sr-popup-number"></span>
+      <div class="sr-popup-selector"></div>
+    </div>
+    <p class="sr-popup-text"></p>
+    <div class="sr-popup-actions">
+      <button type="button" class="sr-cancel">Close</button>
+    </div>
+  `
+
+  // Everything below is page data or user text, so it goes in as text.
+  const number = popup.querySelector('.sr-popup-number') as HTMLElement
+  number.textContent = String(comment.id)
+
+  const selectorEl = popup.querySelector('.sr-popup-selector') as HTMLElement
+  selectorEl.textContent = comment.selector
+
+  const text = popup.querySelector('.sr-popup-text') as HTMLElement
+  text.textContent = comment.comment
+
+  const closeButton = popup.querySelector('.sr-cancel') as HTMLButtonElement
+  closeButton.addEventListener('click', closePopup)
+
+  document.body.appendChild(popup)
+
+  // Anchor the reader to the element the comment is about, falling back to the
+  // middle of the screen when that element is gone.
+  const rect = el?.getBoundingClientRect()
+  placeNearClick(
+    popup,
+    rect ? rect.left : window.innerWidth / 2,
+    rect ? rect.top : window.innerHeight / 3,
+  )
 }
 
 /** Records a comment: into the store (so the panel shows it) and the console. */

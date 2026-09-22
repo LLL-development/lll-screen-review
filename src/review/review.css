@@ -290,3 +290,73 @@ html.sr-active .sr-popup button {
   color: #99a0ad;
   font-size: 11px;
 }
+
+/* --- numbered pins -------------------------------------------------------- */
+
+/* The layer itself never catches the mouse; the pins inside it do. */
+.sr-pin-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482500;
+  pointer-events: none;
+}
+
+.sr-pin {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  /* Pulls the pin onto the corner of the element rather than beside it. */
+  margin: -11px 0 0 -11px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #2f5bd7;
+  color: #fff;
+  font: 600 11px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-shadow: 0 2px 6px rgb(15 20 35 / 35%);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.sr-pin:hover {
+  background: #1f47b8;
+  transform: scale(1.12);
+}
+
+/* --- reading a saved comment ---------------------------------------------- */
+
+.sr-popup-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sr-popup-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2f5bd7;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sr-popup-head .sr-popup-selector {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.sr-popup-text {
+  margin: 0;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

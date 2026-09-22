@@ -7,7 +7,7 @@
 
 import { getComments, onChange, removeComment } from './store'
 import { showHighlight, hideHighlight } from './highlight'
-import { markAsUi } from './ui'
+import { findElement, markAsUi } from './ui'
 
 const panel = markAsUi(document.createElement('aside'))
 panel.className = 'sr-panel'
@@ -113,15 +113,7 @@ function buildRow(comment: {
 
   row.append(head, text, time)
 
-  // The element may have been re-rendered or removed since the comment was
-  // left, so look it up fresh each time rather than holding a reference.
-  const findTarget = () => {
-    try {
-      return document.querySelector(comment.selector)
-    } catch {
-      return null
-    }
-  }
+  const findTarget = () => findElement(comment.selector)
 
   row.addEventListener('mouseenter', () => {
     const target = findTarget()
