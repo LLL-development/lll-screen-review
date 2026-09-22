@@ -360,3 +360,121 @@ html.sr-active .sr-popup button {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* --- panel: collapsing, numbering and resolved state ---------------------- */
+
+.sr-panel-collapse {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #5c6472;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sr-panel-collapse:hover {
+  background: #e9edf5;
+}
+
+.sr-panel-title {
+  flex: none;
+}
+
+.sr-panel-count {
+  flex: 1;
+  color: #7a828f;
+  font-size: 11px;
+}
+
+.sr-row-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2f5bd7;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.sr-row-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.sr-row-status {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e8eefc;
+  color: #2f5bd7;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sr-row-time {
+  flex: 1;
+  margin: 0;
+  color: #99a0ad;
+  font-size: 11px;
+}
+
+.sr-row-resolve {
+  flex: none;
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 9px;
+  border: 1px solid #d4d8e0;
+  border-radius: 5px;
+  background: #fff;
+  color: #3a4252;
+  cursor: pointer;
+}
+
+.sr-row-resolve:hover {
+  border-color: #2f5bd7;
+  color: #2f5bd7;
+}
+
+/* Resolved comments recede rather than disappear: still findable, clearly done. */
+.sr-row[data-status="resolved"] {
+  background: #fafbfc;
+}
+
+.sr-row[data-status="resolved"] .sr-row-text {
+  color: #7a828f;
+}
+
+.sr-row[data-status="resolved"] .sr-row-number,
+.sr-pin[data-status="resolved"] {
+  background: #aeb5c0;
+}
+
+.sr-row[data-status="resolved"] .sr-row-selector {
+  color: #8891a0;
+}
+
+.sr-row[data-status="resolved"] .sr-row-status {
+  background: #eceef2;
+  color: #7a828f;
+}
+
+.sr-pin[data-status="resolved"] {
+  opacity: 0.65;
+}
+
+.sr-pin[data-status="resolved"]:hover {
+  background: #8b93a1;
+  opacity: 1;
+}

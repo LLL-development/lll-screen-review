@@ -8,6 +8,9 @@
  * later does not touch the UI code.
  */
 
+/** Where a comment is in its life: still needs doing, or dealt with. */
+export type ReviewStatus = 'open' | 'resolved'
+
 /** One captured piece of feedback. */
 export type ReviewComment = {
   id: number
@@ -15,10 +18,14 @@ export type ReviewComment = {
   comment: string
   url: string
   createdAt: string
+  status: ReviewStatus
 }
 
-/** What the caller supplies; the store fills in id and createdAt. */
-export type NewReviewComment = Omit<ReviewComment, 'id' | 'createdAt'>
+/** What the caller supplies; the store fills in the rest. */
+export type NewReviewComment = Omit<
+  ReviewComment,
+  'id' | 'createdAt' | 'status'
+>
 
 let nextId = 1
 const comments: ReviewComment[] = []
@@ -28,11 +35,19 @@ export function addComment(input: NewReviewComment): ReviewComment {
   const entry: ReviewComment = {
     id: nextId++,
     createdAt: new Date().toISOString(),
+    status: 'open',
     ...input,
   }
   comments.push(entry)
   notify()
   return entry
+}
+
+export function setStatus(id: number, status: ReviewStatus): void {
+  const entry = comments.find((c) => c.id === id)
+  if (!entry || entry.status === status) return
+  entry.status = status
+  notify()
 }
 
 export function removeComment(id: number): void {

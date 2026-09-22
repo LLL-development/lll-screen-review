@@ -62,6 +62,8 @@ function buildPin(comment: ReviewComment): HTMLElement {
   // changes for a given comment — deleting #2 leaves 1 and 3 alone.
   pin.textContent = String(comment.id)
   pin.title = comment.comment
+  // Resolved pins stay on the page but recede; the styling lives in CSS.
+  pin.dataset.status = comment.status
   pin.addEventListener('click', (event) => {
     event.stopPropagation()
     onActivate?.(comment)
