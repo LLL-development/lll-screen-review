@@ -1,11 +1,15 @@
 /**
  * Where comments live.
  *
- * For now that is a plain array in memory: comments survive as long as the tab
- * is open, and a refresh clears them. This module is the seam where a real
- * backend will eventually plug in — the rest of the tool only ever talks to
- * addComment / getComments / onChange, so swapping the array for a fetch()
- * later does not touch the UI code.
+ * They are held in an array and mirrored into localStorage so they survive a
+ * refresh.
+ *
+ * TEMPORARY: localStorage is a stand-in for a real backend, not the plan. It
+ * is per-browser and per-device, so nobody else can see what you wrote, and
+ * clearing site data wipes it. A server comes later; this module is the seam
+ * where it plugs in, because the rest of the tool only ever talks to
+ * addComment / setStatus / removeComment / getComments / onChange. Swapping
+ * the array for fetch() calls should not touch any UI code.
  */
 
 /** Where a comment is in its life: still needs doing, or dealt with. */
@@ -67,6 +71,72 @@ export function onChange(listener: () => void): void {
   listeners.add(listener)
 }
 
+/** Every mutation ends here, so this is the one place that has to persist. */
 function notify(): void {
+  save()
   for (const listener of listeners) listener()
 }
+
+// --- localStorage (temporary; see the note at the top of the file) ----------
+
+/** Versioned so a future shape change can be told apart from this one. */
+const STORAGE_KEY = 'screen-review:comments:v1'
+
+function save(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(comments))
+  } catch {
+    // Private windows and full quotas both throw. Losing persistence is not a
+    // reason to break the page, so carry on with the in-memory copy.
+  }
+}
+
+function load(): void {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return
+
+    for (const item of parsed) {
+      const entry = toComment(item)
+      if (entry) comments.push(entry)
+    }
+
+    // Carry on numbering from the highest id we restored, so a new comment
+    // never reuses a number that is already pinned to the page.
+    nextId = comments.reduce((max, c) => Math.max(max, c.id), 0) + 1
+  } catch {
+    // Anything unreadable is treated as "no saved comments" rather than an
+    // error: a corrupt entry should not stop the tool from loading.
+  }
+}
+
+/**
+ * Turns one unknown value from storage into a comment, or null if it is not
+ * one. Storage is text that anything could have written, so nothing from it is
+ * trusted without checking.
+ */
+function toComment(value: unknown): ReviewComment | null {
+  if (typeof value !== 'object' || value === null) return null
+
+  const raw = value as Record<string, unknown>
+  if (typeof raw.id !== 'number') return null
+  if (typeof raw.selector !== 'string') return null
+  if (typeof raw.comment !== 'string') return null
+
+  return {
+    id: raw.id,
+    selector: raw.selector,
+    comment: raw.comment,
+    url: typeof raw.url === 'string' ? raw.url : '',
+    createdAt:
+      typeof raw.createdAt === 'string'
+        ? raw.createdAt
+        : new Date().toISOString(),
+    status: raw.status === 'resolved' ? 'resolved' : 'open',
+  }
+}
+
+load()

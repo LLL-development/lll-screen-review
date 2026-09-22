@@ -145,6 +145,12 @@ function buildRow(comment: ReviewComment): HTMLElement {
   status.className = 'sr-row-status'
   status.textContent = comment.status === 'resolved' ? 'Resolved' : 'Open'
 
+  // Shown when the stored selector no longer matches anything: the comment is
+  // still worth reading, there is just nowhere on the page to point at.
+  const missing = document.createElement('span')
+  missing.className = 'sr-row-missing-tag'
+  missing.textContent = 'Element not found'
+
   const time = document.createElement('time')
   time.className = 'sr-row-time'
   time.textContent = new Date(comment.createdAt).toLocaleTimeString()
@@ -160,16 +166,27 @@ function buildRow(comment: ReviewComment): HTMLElement {
 
   const foot = document.createElement('div')
   foot.className = 'sr-row-foot'
-  foot.append(status, time, resolve)
+  foot.append(status, missing, time, resolve)
 
   row.append(head, text, foot)
 
   const findTarget = () => findElement(comment.selector)
 
+  /**
+   * The page can change under us — an element may be re-rendered, removed, or
+   * appear later — so the missing state is re-checked rather than decided once.
+   */
+  const syncMissing = (target: Element | null) => {
+    row.classList.toggle('sr-row-missing', !target)
+    missing.hidden = Boolean(target)
+  }
+
+  syncMissing(findTarget())
+
   row.addEventListener('mouseenter', () => {
     const target = findTarget()
+    syncMissing(target)
     if (target) showHighlight(target, comment.selector)
-    else row.classList.add('sr-row-missing')
   })
   row.addEventListener('mouseleave', () => hideHighlight())
   row.addEventListener('click', () => {

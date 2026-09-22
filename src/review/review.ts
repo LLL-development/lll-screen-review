@@ -34,6 +34,10 @@ export function startReviewTool(): void {
   mountPanel()
   mountPins(openCommentReader)
 
+  // Comments restored from a previous visit should be visible straight away,
+  // without having to turn review mode on first.
+  refreshPanelVisibility()
+
   // Capture phase (the `true` argument) means these run before any handler the
   // page itself registered, so we can swallow clicks before a button or link
   // reacts to them.

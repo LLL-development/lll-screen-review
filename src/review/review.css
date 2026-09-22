@@ -478,3 +478,25 @@ html.sr-active .sr-popup button {
   background: #8b93a1;
   opacity: 1;
 }
+
+/* --- a comment whose element has gone -------------------------------------- */
+
+.sr-row-missing-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #ffe8e6;
+  color: #b4261f;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* A flex child ignores the hidden attribute unless told otherwise. */
+.sr-row-missing-tag[hidden] {
+  display: none;
+}
+
+.sr-row-missing {
+  cursor: default;
+}
