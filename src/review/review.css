@@ -156,3 +156,137 @@ html.sr-active .sr-toggle,
 html.sr-active .sr-popup button {
   cursor: pointer !important;
 }
+
+/* --- the live comments panel ---------------------------------------------- */
+
+.sr-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 74px;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  max-height: min(60vh, 520px);
+  border: 1px solid #d4d8e0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 26px rgb(15 20 35 / 18%);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #1b1f2a;
+  overflow: hidden;
+}
+
+.sr-panel[hidden] {
+  display: none;
+}
+
+.sr-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e7eaf0;
+  background: #f8f9fb;
+}
+
+.sr-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sr-panel-copy {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 9px;
+  border: 1px solid #d4d8e0;
+  border-radius: 5px;
+  background: #fff;
+  color: #3a4252;
+  cursor: pointer;
+}
+
+.sr-panel-copy:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sr-panel-empty {
+  margin: 0;
+  padding: 16px 12px;
+  color: #7a828f;
+  font-size: 12px;
+}
+
+.sr-panel-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.sr-row {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef0f4;
+  cursor: pointer;
+}
+
+.sr-row:last-child {
+  border-bottom: 0;
+}
+
+.sr-row:hover {
+  background: #f4f7ff;
+}
+
+.sr-row-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.sr-row-selector {
+  flex: 1;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #2f5bd7;
+  word-break: break-all;
+}
+
+.sr-row-missing .sr-row-selector {
+  color: #b4261f;
+  text-decoration: line-through;
+}
+
+.sr-row-delete {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #99a0ad;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sr-row-delete:hover {
+  background: #ffe8e6;
+  color: #b4261f;
+}
+
+.sr-row-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sr-row-time {
+  display: block;
+  margin-top: 4px;
+  color: #99a0ad;
+  font-size: 11px;
+}

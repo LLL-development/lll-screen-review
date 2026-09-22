@@ -1,43 +1,36 @@
 import { finder } from '@medv/finder'
+import { isOurUi, markAsUi } from './ui'
+import {
+  mountHighlight,
+  showHighlight,
+  hideHighlight,
+  highlightedElement,
+} from './highlight'
+import { addComment } from './store'
+import { mountPanel, setPanelVisible, hasComments } from './panel'
 import './review.css'
 
 /**
  * The review layer.
  *
  * Turn review mode on and the tool intercepts mouse events on the page:
- * hovering outlines the element under the cursor, clicking opens a small
- * comment box. Saving a comment records which element was clicked (as a CSS
- * selector), what was written, and the page URL.
- *
- * For now "records" means console.log. Storing comments comes later.
+ * hovering outlines the element under the cursor, clicking opens a comment box.
+ * Saved comments go into the store, which makes them show up in the panel on
+ * the right (and, for now, in the console too).
  */
 
-/** Anything carrying this attribute belongs to the tool, not to the page. */
-const UI_ATTR = 'data-screen-review-ui'
-
-/** One captured piece of feedback. */
-export type ReviewComment = {
-  selector: string
-  comment: string
-  url: string
-  createdAt: string
-}
-
 let reviewMode = false
-
-/** Element currently under the cursor, or null when nothing is highlighted. */
-let hovered: Element | null = null
 
 /** The open comment box, or null when none is open. */
 let popup: HTMLElement | null = null
 
 const toggle = buildToggle()
-const highlight = buildHighlight()
-const highlightLabel = highlight.firstElementChild as HTMLElement
 
 /** Mounts the tool onto the current page. Call once, on page load. */
 export function startReviewTool(): void {
-  document.body.append(toggle, highlight)
+  document.body.appendChild(toggle)
+  mountHighlight()
+  mountPanel()
 
   // Capture phase (the `true` argument) means these run before any handler the
   // page itself registered, so we can swallow clicks before a button or link
@@ -45,11 +38,6 @@ export function startReviewTool(): void {
   document.addEventListener('mousemove', onMouseMove, true)
   document.addEventListener('click', onClick, true)
   document.addEventListener('keydown', onKeyDown, true)
-
-  // The highlight box is positioned against the viewport, so it goes stale
-  // when the page scrolls or resizes underneath it.
-  window.addEventListener('scroll', repositionHighlight, true)
-  window.addEventListener('resize', repositionHighlight)
 
   console.log(
     '[Screen Review] ready — hit "Review mode" at the bottom right to start.',
@@ -66,14 +54,21 @@ function setReviewMode(on: boolean): void {
 
   if (!on) {
     closePopup()
-    clearHighlight()
+    hideHighlight()
   }
+
+  refreshPanelVisibility()
 
   console.log(
     on
       ? '[Screen Review] review mode ON — click any element to comment (Esc to exit).'
       : '[Screen Review] review mode off.',
   )
+}
+
+/** The panel stays up while reviewing, and afterwards if it has anything in it. */
+function refreshPanelVisibility(): void {
+  setPanelVisible(reviewMode || hasComments())
 }
 
 // --- hovering ---------------------------------------------------------------
@@ -84,35 +79,16 @@ function onMouseMove(event: MouseEvent): void {
   if (!reviewMode || popup) return
 
   const target = event.target as Element | null
-  if (!target || isOurUi(target)) {
-    clearHighlight()
-    return
-  }
+  if (!target) return
+
+  // Over our own toolbar or panel: leave the highlight alone. The panel points
+  // it at the element belonging to whichever row you are hovering.
+  if (isOurUi(target)) return
 
   // finder does real work, so only recompute when the element actually changes.
-  if (target !== hovered) {
-    hovered = target
-    highlightLabel.textContent = selectorFor(target)
+  if (target !== highlightedElement()) {
+    showHighlight(target, selectorFor(target))
   }
-  drawHighlight(target)
-}
-
-function drawHighlight(el: Element): void {
-  const box = el.getBoundingClientRect()
-  highlight.style.display = 'block'
-  highlight.style.top = `${box.top}px`
-  highlight.style.left = `${box.left}px`
-  highlight.style.width = `${box.width}px`
-  highlight.style.height = `${box.height}px`
-}
-
-function repositionHighlight(): void {
-  if (hovered) drawHighlight(hovered)
-}
-
-function clearHighlight(): void {
-  hovered = null
-  highlight.style.display = 'none'
 }
 
 // --- clicking ---------------------------------------------------------------
@@ -123,7 +99,7 @@ function onClick(event: MouseEvent): void {
   const target = event.target as Element | null
   if (!target) return
 
-  // Clicks on our own toolbar and comment box behave normally.
+  // Clicks on our own toolbar, panel and comment box behave normally.
   if (isOurUi(target)) return
 
   // Everything else is a review click, not a real one: don't follow the link,
@@ -146,12 +122,10 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   closePopup()
 
   const selector = selectorFor(el)
-  hovered = el
-  drawHighlight(el)
+  showHighlight(el, selector)
 
-  popup = document.createElement('div')
+  popup = markAsUi(document.createElement('div'))
   popup.className = 'sr-popup'
-  popup.setAttribute(UI_ATTR, '')
   popup.innerHTML = `
     <div class="sr-popup-selector"></div>
     <textarea placeholder="What should change about this?"></textarea>
@@ -204,17 +178,13 @@ function placeNearClick(el: HTMLElement, x: number, y: number): void {
 function closePopup(): void {
   popup?.remove()
   popup = null
-  clearHighlight()
+  hideHighlight()
 }
 
-/** For now, "saving" a comment means printing it to the console. */
+/** Records a comment: into the store (so the panel shows it) and the console. */
 function capture(selector: string, comment: string): void {
-  const entry: ReviewComment = {
-    selector,
-    comment,
-    url: window.location.href,
-    createdAt: new Date().toISOString(),
-  }
+  const entry = addComment({ selector, comment, url: window.location.href })
+  refreshPanelVisibility()
 
   console.group(
     '%c[Screen Review] comment captured',
@@ -239,26 +209,13 @@ function selectorFor(el: Element): string {
   }
 }
 
-function isOurUi(el: Element): boolean {
-  return Boolean(el.closest(`[${UI_ATTR}]`))
-}
-
 function buildToggle(): HTMLButtonElement {
-  const button = document.createElement('button')
+  const button = markAsUi(document.createElement('button'))
   button.className = 'sr-toggle'
   button.type = 'button'
-  button.setAttribute(UI_ATTR, '')
   button.dataset.on = 'false'
   button.innerHTML =
     '<span class="sr-toggle-dot"></span><span class="sr-toggle-text">Review mode: off</span>'
   button.addEventListener('click', () => setReviewMode(!reviewMode))
   return button
-}
-
-function buildHighlight(): HTMLElement {
-  const box = document.createElement('div')
-  box.className = 'sr-highlight'
-  box.setAttribute(UI_ATTR, '')
-  box.innerHTML = '<span class="sr-highlight-label"></span>'
-  return box
 }
