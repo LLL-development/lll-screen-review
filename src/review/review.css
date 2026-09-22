@@ -1,0 +1,158 @@
+/* Styles for the review layer itself (the toolbar, highlight box and comment
+   popup). Kept separate from the page's own styles on purpose: this is the
+   tool, everything in style.css is the page being reviewed. */
+
+.sr-toggle {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2147483000;
+  font: 500 14px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border: 1px solid #d4d8e0;
+  border-radius: 999px;
+  background: #fff;
+  color: #1b1f2a;
+  box-shadow: 0 4px 14px rgb(15 20 35 / 18%);
+  cursor: pointer;
+}
+
+.sr-toggle:hover {
+  border-color: #b9bfcc;
+}
+
+.sr-toggle[data-on="true"] {
+  background: #2f5bd7;
+  border-color: #2f5bd7;
+  color: #fff;
+}
+
+.sr-toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c3c8d2;
+}
+
+.sr-toggle[data-on="true"] .sr-toggle-dot {
+  background: #7ef0a8;
+}
+
+/* The box drawn over whatever element the cursor is on. pointer-events: none
+   keeps it from swallowing the mouse events we need. */
+.sr-highlight {
+  position: fixed;
+  z-index: 2147482000;
+  pointer-events: none;
+  display: none;
+  border: 2px solid #2f5bd7;
+  background: rgb(47 91 215 / 10%);
+  border-radius: 2px;
+}
+
+.sr-highlight-label {
+  position: absolute;
+  left: 0;
+  top: -22px;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #2f5bd7;
+  color: #fff;
+  font: 500 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.sr-popup {
+  position: fixed;
+  z-index: 2147483001;
+  width: 320px;
+  padding: 14px;
+  border: 1px solid #d4d8e0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgb(15 20 35 / 22%);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #1b1f2a;
+}
+
+.sr-popup-selector {
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: #f2f4f8;
+  color: #3a4252;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+
+.sr-popup textarea {
+  width: 100%;
+  min-height: 84px;
+  padding: 8px;
+  border: 1px solid #d4d8e0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.sr-popup textarea:focus {
+  outline: 2px solid #2f5bd7;
+  outline-offset: -1px;
+}
+
+.sr-popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sr-popup button {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 13px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sr-popup .sr-save {
+  border: 0;
+  background: #2f5bd7;
+  color: #fff;
+}
+
+.sr-popup .sr-cancel {
+  border: 1px solid #d4d8e0;
+  background: #fff;
+  color: #3a4252;
+}
+
+.sr-popup-hint {
+  margin-top: 8px;
+  color: #7a828f;
+  font-size: 11px;
+}
+
+/* While review mode is on, the whole page gets a crosshair cursor so it is
+   obvious that clicks are being intercepted. Our own UI keeps a normal one. */
+html.sr-active,
+html.sr-active * {
+  cursor: crosshair !important;
+}
+
+html.sr-active [data-screen-review-ui],
+html.sr-active [data-screen-review-ui] * {
+  cursor: auto !important;
+}
+
+html.sr-active .sr-toggle,
+html.sr-active .sr-popup button {
+  cursor: pointer !important;
+}
