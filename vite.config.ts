@@ -209,17 +209,28 @@ async function callModel(
   config: ClarifyConfig,
   messages: { role: 'system' | 'user'; content: string }[],
 ): Promise<string> {
-  const response = await fetch(`${config.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders(config) },
-    body: JSON.stringify({
-      model: config.model,
-      messages,
-      temperature: 0.2,
-      max_tokens: 300,
-    }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  })
+  let response: Response
+  try {
+    response = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(config) },
+      body: JSON.stringify({
+        model: config.model,
+        messages,
+        temperature: 0.2,
+        max_tokens: 300,
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch (error) {
+    // "fetch failed" tells the reviewer nothing, so say what was being called
+    // and what to check.
+    throw new Error(
+      error instanceof Error && error.name === 'TimeoutError'
+        ? `${config.model} did not answer within ${TIMEOUT_MS / 1000}s.`
+        : `Could not reach the model at ${config.baseUrl}. Is it running?`,
+    )
+  }
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '')

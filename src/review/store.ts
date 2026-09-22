@@ -27,6 +27,11 @@ export type ReviewComment = {
   status: ReviewStatus
   /** What was on screen at the element when the comment was made. */
   context: ElementContext
+  /**
+   * The agreed wording after the AI asked a follow-up question, as confirmed
+   * by the reviewer. Absent when nobody clarified.
+   */
+  clarified?: string
 }
 
 /** What the caller supplies; the store fills in the rest. */
@@ -141,6 +146,9 @@ function toComment(value: unknown): ReviewComment | null {
         : new Date().toISOString(),
     status: raw.status === 'resolved' ? 'resolved' : 'open',
     context: toContext(raw.context),
+    ...(typeof raw.clarified === 'string' && raw.clarified
+      ? { clarified: raw.clarified }
+      : {}),
   }
 }
 

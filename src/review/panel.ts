@@ -141,6 +141,13 @@ function buildRow(comment: ReviewComment): HTMLElement {
   text.className = 'sr-row-text'
   text.textContent = comment.comment
 
+  // Both are kept: the clarified wording is what someone acts on, the original
+  // note is how it was first put.
+  const clarified = document.createElement('p')
+  clarified.className = 'sr-row-clarified'
+  clarified.textContent = comment.clarified ?? ''
+  clarified.hidden = !comment.clarified
+
   const status = document.createElement('span')
   status.className = 'sr-row-status'
   status.textContent = comment.status === 'resolved' ? 'Resolved' : 'Open'
@@ -168,7 +175,7 @@ function buildRow(comment: ReviewComment): HTMLElement {
   foot.className = 'sr-row-foot'
   foot.append(status, missing, time, resolve)
 
-  row.append(head, text, foot)
+  row.append(head, text, clarified, foot)
 
   const findTarget = () => findElement(comment.selector)
 

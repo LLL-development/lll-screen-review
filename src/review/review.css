@@ -500,3 +500,147 @@ html.sr-active .sr-popup button {
 .sr-row-missing {
   cursor: default;
 }
+
+/* --- AI clarification ------------------------------------------------------ */
+
+.sr-popup {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.sr-clarify:empty {
+  display: none;
+}
+
+.sr-clarify {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e0e6f3;
+  border-radius: 7px;
+  background: #f7f9fe;
+}
+
+.sr-clarify-question {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sr-clarify-options {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.sr-clarify-option {
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 9px;
+  border: 1px solid #d4ddf3;
+  border-radius: 6px;
+  background: #fff;
+  color: #2a3142;
+  cursor: pointer;
+}
+
+.sr-clarify-option:hover {
+  border-color: #2f5bd7;
+  background: #eef3ff;
+}
+
+.sr-clarify-answer-row {
+  display: flex;
+  gap: 6px;
+}
+
+.sr-clarify-answer {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid #d4ddf3;
+  border-radius: 6px;
+}
+
+.sr-clarify-send {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #2f5bd7;
+  color: #fff;
+  cursor: pointer;
+}
+
+.sr-clarify-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #5c6472;
+}
+
+.sr-clarify-requirement {
+  width: 100%;
+  min-height: 62px;
+  margin-top: 5px;
+  padding: 7px;
+  border: 1px solid #d4ddf3;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.sr-clarify-note {
+  margin: 6px 0 0;
+  color: #7a828f;
+  font-size: 11px;
+}
+
+.sr-clarify-error {
+  color: #b4261f;
+}
+
+.sr-clarify-btn {
+  border: 1px solid #d4d8e0;
+  background: #fff;
+  color: #3a4252;
+}
+
+.sr-clarify-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.sr-clarify-btn[hidden] {
+  display: none;
+}
+
+/* The clarified wording, wherever it is shown back. */
+.sr-popup-clarified,
+.sr-row-clarified {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-left: 3px solid #2f5bd7;
+  border-radius: 0 5px 5px 0;
+  background: #f2f6ff;
+  color: #2a3142;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sr-row-clarified[hidden] {
+  display: none;
+}
+
+.sr-row[data-status="resolved"] .sr-row-clarified {
+  border-left-color: #aeb5c0;
+  background: #f4f5f7;
+  color: #7a828f;
+}

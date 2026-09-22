@@ -7,7 +7,8 @@ import {
   highlightedElement,
 } from './highlight'
 import { addComment, type ReviewComment } from './store'
-import { captureContext } from './context'
+import { captureContext, type ElementContext } from './context'
+import { createClarifySection } from './clarify-ui'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
 import './review.css'
@@ -129,6 +130,9 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   closePopup()
 
   const selector = selectorFor(el)
+  // Captured once, when the popup opens: the clarify step and the saved
+  // comment then describe the same moment, even if the page changes meanwhile.
+  const context = captureContext(el)
   showHighlight(el, selector)
 
   popup = markAsUi(document.createElement('div'))
@@ -151,6 +155,17 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   const textarea = popup.querySelector('textarea') as HTMLTextAreaElement
   const saveButton = popup.querySelector('.sr-save') as HTMLButtonElement
   const cancelButton = popup.querySelector('.sr-cancel') as HTMLButtonElement
+  const actions = popup.querySelector('.sr-popup-actions') as HTMLElement
+
+  // The clarify step hides itself when no model is configured, so the popup
+  // looks and behaves exactly as before when the AI is not set up.
+  const clarify = createClarifySection({
+    selector,
+    context,
+    getComment: () => textarea.value.trim(),
+  })
+  actions.insertBefore(clarify.button, saveButton)
+  popup.insertBefore(clarify.element, actions)
 
   const submit = () => {
     const text = textarea.value.trim()
@@ -158,7 +173,7 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
       textarea.focus()
       return
     }
-    capture(el, selector, text)
+    capture(selector, text, context, clarify.getClarified())
     closePopup()
   }
 
@@ -223,6 +238,15 @@ function openCommentReader(comment: ReviewComment): void {
   const text = popup.querySelector('.sr-popup-text') as HTMLElement
   text.textContent = comment.comment
 
+  // The clarified wording is the actionable version, so it is worth showing
+  // right under the note it came from.
+  if (comment.clarified) {
+    const clarified = document.createElement('p')
+    clarified.className = 'sr-popup-clarified'
+    clarified.textContent = comment.clarified
+    text.after(clarified)
+  }
+
   const closeButton = popup.querySelector('.sr-cancel') as HTMLButtonElement
   closeButton.addEventListener('click', closePopup)
 
@@ -239,14 +263,20 @@ function openCommentReader(comment: ReviewComment): void {
 }
 
 /** Records a comment: into the store (so the panel shows it) and the console. */
-function capture(el: Element, selector: string, comment: string): void {
+function capture(
+  selector: string,
+  comment: string,
+  context: ElementContext,
+  clarified: string,
+): void {
   const entry = addComment({
     selector,
     comment,
     url: window.location.href,
-    // Captured now, not later: the page may look different by the time anyone
-    // reads this back.
-    context: captureContext(el),
+    context,
+    // Only present when the reviewer went through the clarify step and kept
+    // the wording.
+    ...(clarified ? { clarified } : {}),
   })
   refreshPanelVisibility()
 
@@ -258,6 +288,7 @@ function capture(el: Element, selector: string, comment: string): void {
   console.log('comment :', entry.comment)
   console.log('element :', `<${entry.context.tagName}> ${entry.context.text}`)
   console.log('nearby  :', entry.context.nearbyText)
+  if (entry.clarified) console.log('clarified:', entry.clarified)
   console.log('url     :', entry.url)
   console.log('object  :', entry)
   console.groupEnd()
