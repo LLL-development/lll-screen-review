@@ -12,6 +12,8 @@
  * the array for fetch() calls should not touch any UI code.
  */
 
+import type { ElementContext } from './context'
+
 /** Where a comment is in its life: still needs doing, or dealt with. */
 export type ReviewStatus = 'open' | 'resolved'
 
@@ -23,6 +25,8 @@ export type ReviewComment = {
   url: string
   createdAt: string
   status: ReviewStatus
+  /** What was on screen at the element when the comment was made. */
+  context: ElementContext
 }
 
 /** What the caller supplies; the store fills in the rest. */
@@ -136,6 +140,39 @@ function toComment(value: unknown): ReviewComment | null {
         ? raw.createdAt
         : new Date().toISOString(),
     status: raw.status === 'resolved' ? 'resolved' : 'open',
+    context: toContext(raw.context),
+  }
+}
+
+/**
+ * Comments saved before context existed have none, so missing or malformed
+ * context becomes an empty one rather than discarding an otherwise fine
+ * comment.
+ */
+function toContext(value: unknown): ElementContext {
+  const empty: ElementContext = {
+    tagName: '',
+    text: '',
+    nearbyText: '',
+    viewport: { width: 0, height: 0 },
+  }
+
+  if (typeof value !== 'object' || value === null) return empty
+
+  const raw = value as Record<string, unknown>
+  const viewport =
+    typeof raw.viewport === 'object' && raw.viewport !== null
+      ? (raw.viewport as Record<string, unknown>)
+      : {}
+
+  return {
+    tagName: typeof raw.tagName === 'string' ? raw.tagName : '',
+    text: typeof raw.text === 'string' ? raw.text : '',
+    nearbyText: typeof raw.nearbyText === 'string' ? raw.nearbyText : '',
+    viewport: {
+      width: typeof viewport.width === 'number' ? viewport.width : 0,
+      height: typeof viewport.height === 'number' ? viewport.height : 0,
+    },
   }
 }
 

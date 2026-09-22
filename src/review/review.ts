@@ -7,6 +7,7 @@ import {
   highlightedElement,
 } from './highlight'
 import { addComment, type ReviewComment } from './store'
+import { captureContext } from './context'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
 import './review.css'
@@ -157,7 +158,7 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
       textarea.focus()
       return
     }
-    capture(selector, text)
+    capture(el, selector, text)
     closePopup()
   }
 
@@ -238,8 +239,15 @@ function openCommentReader(comment: ReviewComment): void {
 }
 
 /** Records a comment: into the store (so the panel shows it) and the console. */
-function capture(selector: string, comment: string): void {
-  const entry = addComment({ selector, comment, url: window.location.href })
+function capture(el: Element, selector: string, comment: string): void {
+  const entry = addComment({
+    selector,
+    comment,
+    url: window.location.href,
+    // Captured now, not later: the page may look different by the time anyone
+    // reads this back.
+    context: captureContext(el),
+  })
   refreshPanelVisibility()
 
   console.group(
@@ -248,6 +256,8 @@ function capture(selector: string, comment: string): void {
   )
   console.log('selector:', entry.selector)
   console.log('comment :', entry.comment)
+  console.log('element :', `<${entry.context.tagName}> ${entry.context.text}`)
+  console.log('nearby  :', entry.context.nearbyText)
   console.log('url     :', entry.url)
   console.log('object  :', entry)
   console.groupEnd()
