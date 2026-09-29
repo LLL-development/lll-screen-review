@@ -1,4 +1,6 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv, type Plugin, type ViteDevServer } from 'vite'
+import { proxyPlugin } from './server/proxy.ts'
 
 /**
  * Dev-only API route for the AI clarification step.
@@ -322,5 +324,15 @@ async function readJson(
 export default defineConfig(({ mode }) => ({
   // The empty prefix loads variables without a VITE_ prefix too. They stay in
   // this Node process; nothing here is handed to the client bundle.
-  plugins: [clarifyPlugin(loadEnv(mode, process.cwd(), ''))],
+  plugins: [clarifyPlugin(loadEnv(mode, process.cwd(), '')), proxyPlugin()],
+  build: {
+    // Two pages: the start screen and the local test page. Without this, a
+    // build only includes index.html and the test page silently goes missing.
+    rolldownOptions: {
+      input: {
+        start: fileURLToPath(new URL('./index.html', import.meta.url)),
+        test: fileURLToPath(new URL('./test-page.html', import.meta.url)),
+      },
+    },
+  },
 }))

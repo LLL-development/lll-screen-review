@@ -28,6 +28,16 @@ export type ClarifyInput = {
 
 const OFFLINE: ClarifyStatus = { configured: false, reachable: false, model: '' }
 
+/**
+ * Built from this script's own origin, not the page's. On a page loaded
+ * through the proxy, a <base> tag points relative addresses at the real site,
+ * so a bare '/api/clarify' would go there instead of to us.
+ *
+ * Not `new URL('/api/clarify', import.meta.url)`: Vite rewrites that pattern
+ * as a file import and the request ends up at /@fs/api/clarify.
+ */
+const API_URL = `${new URL(import.meta.url).origin}/api/clarify`
+
 /** Checked once per page load; the answer decides whether the button appears. */
 let statusPromise: Promise<ClarifyStatus> | null = null
 
@@ -38,7 +48,7 @@ export function clarifyStatus(): Promise<ClarifyStatus> {
 
 async function fetchStatus(): Promise<ClarifyStatus> {
   try {
-    const response = await fetch('/api/clarify')
+    const response = await fetch(API_URL)
     if (!response.ok) return OFFLINE
 
     const data = (await response.json()) as Partial<ClarifyStatus>
@@ -84,7 +94,7 @@ export async function composeRequirement(
 }
 
 async function post(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const response = await fetch('/api/clarify', {
+  const response = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

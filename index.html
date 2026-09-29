@@ -3,99 +3,51 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Acme Dashboard — Screen Review test page</title>
+    <title>Screen Review</title>
   </head>
   <body>
-    <header class="site-header">
-      <h1 id="page-title">Acme Dashboard</h1>
-      <nav class="main-nav">
-        <a href="#overview">Overview</a>
-        <a href="#reports">Reports</a>
-        <a href="#settings">Settings</a>
-      </nav>
-    </header>
+    <main class="start">
+      <h1>Screen Review</h1>
+      <p class="start-lede">Paste the address of a page you want to review.</p>
 
-    <main class="page">
-      <section class="intro">
-        <p class="lede">
-          This is a fake page. It exists only so we have something to click on
-          while we build the review layer.
+      <form id="load-form">
+        <label for="page-url">Page address</label>
+        <div class="start-row">
+          <input
+            id="page-url"
+            name="url"
+            type="text"
+            inputmode="url"
+            autocomplete="url"
+            spellcheck="false"
+            placeholder="https://example.com"
+          />
+          <button type="submit">Load page</button>
+        </div>
+
+        <label class="start-check">
+          <input id="run-scripts" type="checkbox" checked />
+          Run the site's own scripts
+        </label>
+        <p class="start-hint">
+          Makes more pages look right. Turn it off if a page jumps away to the
+          real site, goes blank, or keeps changing under you.
         </p>
-        <p>
-          It deliberately mixes elements that have IDs, elements that only have
-          classes, and repeated elements that have neither — so we can see what
-          kind of CSS selector each one produces.
-        </p>
-      </section>
 
-      <section class="card-grid">
-        <article class="card">
-          <h2>Revenue</h2>
-          <p class="stat">$12,480</p>
-          <button class="card-action">View details</button>
-        </article>
-        <article class="card">
-          <h2>Active users</h2>
-          <p class="stat">1,204</p>
-          <button class="card-action">View details</button>
-        </article>
-        <article class="card">
-          <h2>Churn</h2>
-          <p class="stat">2.1%</p>
-          <button class="card-action">View details</button>
-        </article>
-      </section>
+        <p id="load-message" class="start-message" role="status"></p>
+      </form>
 
-      <section class="panel">
-        <h2>Recent signups</h2>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Plan</th>
-              <th>Joined</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Dana Reyes</td>
-              <td>Pro</td>
-              <td>Sep 18</td>
-            </tr>
-            <tr>
-              <td>Sam Okafor</td>
-              <td>Free</td>
-              <td>Sep 19</td>
-            </tr>
-            <tr>
-              <td>Lee Brandt</td>
-              <td>Pro</td>
-              <td>Sep 21</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+      <p class="start-alt">
+        or <a href="/test-page.html">open the local test page</a>
+      </p>
 
-      <section class="panel">
-        <h2>Invite a teammate</h2>
-        <form id="invite-form">
-          <label for="invite-email">Email address</label>
-          <input id="invite-email" type="email" placeholder="teammate@acme.com" />
-          <label for="invite-role">Role</label>
-          <select id="invite-role">
-            <option>Viewer</option>
-            <option>Editor</option>
-            <option>Admin</option>
-          </select>
-          <button type="submit" class="primary">Send invite</button>
-        </form>
-      </section>
+      <p class="start-note">
+        Works best on simple, mostly static pages: blogs, docs, marketing
+        sites. You see the logged-out version of a page, and sites built
+        entirely in JavaScript, or that block automated loading, may not work.
+      </p>
     </main>
 
-    <footer class="site-footer">
-      <small>Acme Inc. — internal preview</small>
-    </footer>
-
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/start/start.ts"></script>
   </body>
 </html>

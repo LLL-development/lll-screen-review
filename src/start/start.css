@@ -1,0 +1,141 @@
+/* Styles for the start screen only. The test page has style.css and the
+   review tool has review.css; neither is loaded here. */
+
+:root {
+  --ink: #1b1f2a;
+  --muted: #5c6472;
+  --line: #e2e5ec;
+  --accent: #2f5bd7;
+  --accent-dark: #2449b8;
+  --error: #b42318;
+  --bg: #f6f7f9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.5;
+}
+
+.start {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 32px;
+}
+
+.start h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.start-lede {
+  margin: 0 0 24px;
+  color: var(--muted);
+}
+
+.start label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Input and button side by side, stacking when the screen is too narrow. */
+.start-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.start-row input {
+  flex: 1 1 260px;
+  min-width: 0;
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.start-row input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.start-row button {
+  font: inherit;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.start-row button:hover {
+  background: var(--accent-dark);
+}
+
+.start-row button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.start .start-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.start-hint {
+  margin: 2px 0 0 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Reserves a line even when empty, so a message appearing doesn't make the
+   rest of the card jump. */
+.start-message {
+  min-height: 1.5em;
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.start-message[data-kind="error"] {
+  color: var(--error);
+}
+
+.start-alt {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.start-alt a {
+  color: var(--accent);
+}
+
+.start-note {
+  margin: 24px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}

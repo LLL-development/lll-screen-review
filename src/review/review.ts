@@ -6,7 +6,7 @@ import {
   hideHighlight,
   highlightedElement,
 } from './highlight'
-import { addComment, type ReviewComment } from './store'
+import { addComment, loadComments, type ReviewComment } from './store'
 import { captureContext, type ElementContext } from './context'
 import { createClarifySection } from './clarify-ui'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
@@ -22,15 +22,31 @@ import './review.css'
  * the right (and, for now, in the console too).
  */
 
+export type ReviewToolOptions = {
+  /**
+   * The real address of the page under review, when the address bar says
+   * something else. A page loaded through the proxy lives at localhost, but
+   * its comments should say which site they are about — and each page keeps
+   * its own list. Leave it out for a page reviewed where it lives.
+   */
+  pageUrl?: string
+}
+
 let reviewMode = false
 
 /** The open comment box, or null when none is open. */
 let popup: HTMLElement | null = null
 
+/** See ReviewToolOptions.pageUrl. */
+let pageUrl: string | undefined
+
 const toggle = buildToggle()
 
 /** Mounts the tool onto the current page. Call once, on page load. */
-export function startReviewTool(): void {
+export function startReviewTool(options: ReviewToolOptions = {}): void {
+  pageUrl = options.pageUrl
+  loadComments(pageUrl)
+
   document.body.appendChild(toggle)
   mountHighlight()
   mountPanel()
@@ -272,7 +288,7 @@ function capture(
   const entry = addComment({
     selector,
     comment,
-    url: window.location.href,
+    url: pageUrl ?? window.location.href,
     context,
     // Only present when the reviewer went through the clarify step and kept
     // the wording.

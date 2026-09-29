@@ -91,9 +91,25 @@ function notify(): void {
 /** Versioned so a future shape change can be told apart from this one. */
 const STORAGE_KEY = 'screen-review:comments:v1'
 
+/** Which list this page reads and writes; set by loadComments. */
+let storageKey = STORAGE_KEY
+
+/**
+ * Restores saved comments. Call once, before anything reads them.
+ *
+ * Given a page address, that page gets a list of its own, so a comment left
+ * on one site never turns up — or pins itself to a lookalike element — on
+ * another. Without one, the original shared list is used, which is what the
+ * local test page has always had.
+ */
+export function loadComments(page?: string): void {
+  storageKey = page ? `${STORAGE_KEY}:${page}` : STORAGE_KEY
+  load()
+}
+
 function save(): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(comments))
+    localStorage.setItem(storageKey, JSON.stringify(comments))
   } catch {
     // Private windows and full quotas both throw. Losing persistence is not a
     // reason to break the page, so carry on with the in-memory copy.
@@ -102,7 +118,7 @@ function save(): void {
 
 function load(): void {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey)
     if (!raw) return
 
     const parsed: unknown = JSON.parse(raw)
@@ -183,5 +199,3 @@ function toContext(value: unknown): ElementContext {
     },
   }
 }
-
-load()
