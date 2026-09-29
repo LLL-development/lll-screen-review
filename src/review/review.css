@@ -68,6 +68,12 @@
   font: 500 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+/* For elements at the very top of the screen, where above would be off it. */
+.sr-highlight-label-inside {
+  top: 0;
+  border-radius: 0 0 3px 0;
+}
+
 .sr-popup {
   position: fixed;
   z-index: 2147483001;

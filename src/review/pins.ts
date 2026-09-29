@@ -11,7 +11,10 @@
  */
 
 import { getComments, onChange, type ReviewComment } from './store'
-import { findElement, markAsUi } from './ui'
+import { findElement, markAsUi, mountUi } from './ui'
+
+/** How often the selectors are looked up again; see track. */
+const RECHECK_MS = 500
 
 const layer = markAsUi(document.createElement('div'))
 layer.className = 'sr-pin-layer'
@@ -20,19 +23,22 @@ layer.className = 'sr-pin-layer'
 let onActivate: ((comment: ReviewComment) => void) | null = null
 
 /**
- * The pins currently on screen, paired with the element each one follows, so
- * scrolling can move them without rebuilding the DOM.
+ * Every comment, paired with the element its selector found (if any) and its
+ * pin (if it has one), so the page moving doesn't mean rebuilding the DOM.
  */
-const placed: { el: Element; node: HTMLElement }[] = []
+const placed: {
+  comment: ReviewComment
+  el: Element | null
+  node: HTMLElement | null
+}[] = []
+
+let frame = 0
+let lastCheck = 0
 
 export function mountPins(handler: (comment: ReviewComment) => void): void {
   onActivate = handler
-  document.body.appendChild(layer)
+  mountUi(layer)
   onChange(render)
-
-  window.addEventListener('scroll', repositionPins, true)
-  window.addEventListener('resize', repositionPins)
-
   render()
 }
 
@@ -43,15 +49,38 @@ function render(): void {
   for (const comment of getComments()) {
     const el = findElement(comment.selector)
     // No element to pin to: the comment still exists and still shows up in the
-    // panel, there is just nowhere on the page to put a marker.
-    if (!el) continue
-
-    const node = buildPin(comment)
-    layer.appendChild(node)
-    placed.push({ el, node })
+    // panel, there is just nowhere on the page to put a marker — for now.
+    const node = el ? buildPin(comment) : null
+    if (node) layer.appendChild(node)
+    placed.push({ comment, el, node })
   }
 
   repositionPins()
+  lastCheck = performance.now()
+  if (placed.length > 0) frame ||= requestAnimationFrame(track)
+}
+
+/**
+ * Runs every frame while there are comments. Pins move with their element
+ * however it moves — scrolling, but also an image loading above it or an
+ * animation. And every so often the selectors are looked up again, so a pin
+ * follows an element the page re-rendered, goes with one it removed, and
+ * turns up for one that has only just appeared.
+ */
+function track(now: number): void {
+  frame = 0
+  if (placed.length === 0) return
+
+  if (now - lastCheck > RECHECK_MS) {
+    lastCheck = now
+    if (placed.some((p) => findElement(p.comment.selector) !== p.el)) {
+      render()
+      return
+    }
+  }
+
+  repositionPins()
+  frame = requestAnimationFrame(track)
 }
 
 function buildPin(comment: ReviewComment): HTMLElement {
@@ -72,17 +101,24 @@ function buildPin(comment: ReviewComment): HTMLElement {
 }
 
 function repositionPins(): void {
-  for (const { el, node } of placed) {
-    const rect = el.getBoundingClientRect()
+  // Every rectangle first, then every write: reading after writing would
+  // make the browser redo its layout once per pin.
+  const rects = placed.map(({ el, node }) =>
+    el && node && el.isConnected ? el.getBoundingClientRect() : null,
+  )
 
-    // Hidden or collapsed elements have no rectangle worth pinning to.
-    if (rect.width === 0 && rect.height === 0) {
+  placed.forEach(({ node }, i) => {
+    if (!node) return
+    const rect = rects[i]
+
+    // Hidden, collapsed or removed elements have no rectangle worth pinning to.
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
       node.style.display = 'none'
-      continue
+      return
     }
 
     node.style.display = 'flex'
     node.style.top = `${rect.top}px`
     node.style.left = `${rect.left}px`
-  }
+  })
 }
