@@ -255,6 +255,7 @@ function prepareHtml(html: string, page: URL, ourOrigin: string): string {
     // A security policy written for the real site. Here it would block our
     // script, or the site's own ones, which now count as a different origin.
     .replace(/<meta\b[^>]*http-equiv\s*=\s*["']?content-security-policy[^>]*>/gi, '')
+    .replace(/<(?:link|script)\b[^>]*>/gi, dropUncheckableIntegrity)
 
   const tags = [
     `<base href="${escapeHtml(base)}">`,
@@ -268,6 +269,18 @@ function prepareHtml(html: string, page: URL, ourOrigin: string): string {
   ].join('')
 
   return insertAfterFirst(cleaned, [/<head\b[^>]*>/i, /<html\b[^>]*>/i, /<!doctype[^>]*>/i], tags)
+}
+
+/**
+ * An integrity hash on a file with no crossorigin attribute can only be
+ * checked when the file comes from the page's own origin. Through the proxy
+ * the page lives on localhost, so the browser can't check the hash and blocks
+ * the file outright — often the site's main stylesheet. Hashes on tags that
+ * do ask for CORS are kept, since those can still be checked.
+ */
+function dropUncheckableIntegrity(tag: string): string {
+  if (/\scrossorigin\b/i.test(tag)) return tag
+  return tag.replace(/\s+integrity\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i, '')
 }
 
 function resolveOr(href: string | undefined, page: URL): string {
