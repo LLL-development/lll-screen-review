@@ -74,5 +74,9 @@ function collapse(text: string): string {
 }
 
 function truncate(text: string, limit: number): string {
-  return text.length <= limit ? text : `${text.slice(0, limit - 1).trimEnd()}…`
+  if (text.length <= limit) return text
+  // Emoji and some CJK characters take two string positions; cutting between
+  // them leaves half a character that shows up as "�".
+  const cut = /[\uD800-\uDBFF]$/.test(text.slice(0, limit - 1)) ? limit - 2 : limit - 1
+  return `${text.slice(0, cut).trimEnd()}…`
 }
