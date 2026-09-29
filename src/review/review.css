@@ -2,6 +2,14 @@
    popup). Kept separate from the page's own styles on purpose: this is the
    tool, everything in style.css is the page being reviewed. */
 
+/* Sizes below assume border-box, and a page's own `* { box-sizing: ... }`
+   would otherwise decide it — pushing the text box out past the popup's edge
+   on pages that use content-box. */
+[data-screen-review-ui],
+[data-screen-review-ui] * {
+  box-sizing: border-box;
+}
+
 .sr-toggle {
   position: fixed;
   right: 20px;
@@ -78,6 +86,7 @@
   position: fixed;
   z-index: 2147483001;
   width: 320px;
+  max-width: calc(100vw - 24px);
   padding: 14px;
   border: 1px solid #d4d8e0;
   border-radius: 10px;
@@ -144,6 +153,26 @@
   margin-top: 8px;
   color: #7a828f;
   font-size: 11px;
+}
+
+/* A click elsewhere while a comment is half-written: a shake, not a new box. */
+.sr-popup-nudge {
+  animation: sr-nudge 0.3s ease-in-out;
+}
+
+.sr-popup-nudge .sr-popup-hint {
+  color: #b4261f;
+}
+
+@keyframes sr-nudge {
+  25% { translate: -6px 0; }
+  75% { translate: 6px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sr-popup-nudge {
+    animation: none;
+  }
 }
 
 /* While review mode is on, the whole page gets a crosshair cursor so it is
