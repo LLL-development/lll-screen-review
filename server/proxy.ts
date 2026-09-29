@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { fileURLToPath } from 'node:url'
 import type { Plugin, ViteDevServer } from 'vite'
 
 /**
@@ -22,18 +24,25 @@ import type { Plugin, ViteDevServer } from 'vite'
  * - <base href> points the page's relative addresses (CSS, images, scripts)
  *   back at the real site, so they still load from there.
  * - A <script> tag loads src/proxy/inject.ts, which starts the review tool.
+ * - A service worker, server/proxy-worker.js, fetches through GET
+ *   /proxy-asset the files the browser would otherwise refuse: module
+ *   scripts, fonts and the site's own fetch() calls. Those get a CORS check,
+ *   which the site passes for its own pages but not for one on localhost.
+ *   A page only loads once the worker is in place; until then /proxy sends
+ *   a short page that installs it and reloads.
  *
  * What it can't do: this is the HTML the site's server sends, which suits
  * static and server-rendered pages (blogs, docs, marketing sites, Wikipedia).
  * It does NOT work well for:
- * - Single-page apps that build the page in the browser. Their scripts now
- *   run at localhost, so their calls home are blocked as cross-origin, and
- *   their routers see "/proxy" instead of their own path.
+ * - Single-page apps that build the page in the browser. Their calls home go
+ *   out without your cookies, anything but a GET is blocked as cross-origin,
+ *   and their routers see "/proxy" instead of their own path.
  * - Pages behind a login. The fetch carries none of your cookies, so you get
  *   the logged-out page.
  * - Sites that block automated fetching. Bot protection sees a server, not a
  *   person, and often refuses.
- * - Fonts and module scripts the site only lets its own pages use (CORS).
+ * - Files on another domain that only the real site may use, like fonts on
+ *   the site's own CDN. The worker only fetches from the page's own origin.
  * Reviewing arbitrary live sites properly takes a browser extension: an
  * extension is granted permission to run inside any page, on the real site,
  * logged in, with nothing re-hosted.
@@ -42,7 +51,8 @@ import type { Plugin, ViteDevServer } from 'vite'
  * so they can do what our pages can — read saved comments, call /api/clarify.
  * Only load sites you trust. The route also refuses anything but a top-level
  * page load, so those scripts can't use it to read other addresses through
- * us. It only exists under `npm run dev`, which listens on this machine only;
+ * us, and /proxy-asset only fetches from sites whose pages were loaded here.
+ * It only exists under `npm run dev`, which listens on this machine only;
  * starting it with --host would open it to your whole network.
  */
 
@@ -60,9 +70,27 @@ const BROWSER_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 }
 
+/**
+ * At the root, not under /proxy/: a service worker can only look after pages
+ * at or below its own folder, and proxied pages are at /proxy?url=….
+ */
+const WORKER_PATH = '/proxy-worker.js'
+const WORKER_FILE = fileURLToPath(new URL('./proxy-worker.js', import.meta.url))
+
+/** Set by the setup page just before it reloads, so it can't reload forever. */
+const WORKER_TRIED_COOKIE = 'screen-review-worker-tried'
+
+/**
+ * Sites whose pages have been loaded through the proxy. /proxy-asset only
+ * fetches from these, so a proxied page's scripts can't use it to read any
+ * address they like.
+ */
+const servedOrigins = new Set<string>()
+
 type PageResult =
-  | { ok: true; html: string; url: URL }
-  | { ok: false; status: number; reason: string }
+  | { kind: 'page'; html: string; url: URL }
+  | { kind: 'redirect'; url: URL }
+  | { kind: 'error'; status: number; reason: string }
 
 export function proxyPlugin(): Plugin {
   return {
@@ -74,6 +102,20 @@ export function proxyPlugin(): Plugin {
           // server down or leave a blank screen.
           sendErrorPage(res, 500, 'Something went wrong on our side.', '')
         })
+      })
+
+      server.middlewares.use('/proxy-asset', (req, res) => {
+        handleAsset(req, res).catch(() => {
+          if (!res.headersSent) res.statusCode = 502
+          res.end()
+        })
+      })
+
+      server.middlewares.use(WORKER_PATH, (_req, res) => {
+        res.setHeader('Content-Type', 'text/javascript; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-cache')
+        // Read on every request, so an edit takes effect without a restart.
+        res.end(readFileSync(WORKER_FILE))
       })
     },
   }
@@ -108,11 +150,40 @@ async function handleProxy(
     return
   }
 
+  // The page has to come through the service worker, or its module scripts
+  // and fonts will be refused. Without the worker's header, send a page that
+  // installs it and reloads. The cookie is that page saying it already
+  // tried, so a browser that can't run the worker still gets the page — just
+  // without that help — instead of reloading forever.
+  const viaWorker = Boolean(req.headers['service-worker-navigation-preload'])
+  const workerTried = hasCookie(req, WORKER_TRIED_COOKIE)
+  if (!viaWorker && !workerTried) {
+    sendWorkerSetupPage(res)
+    return
+  }
+  if (workerTried) {
+    res.setHeader('Set-Cookie', `${WORKER_TRIED_COOKIE}=; Path=/proxy; Max-Age=0`)
+  }
+
   const page = await fetchPage(target)
-  if (!page.ok) {
+  if (page.kind === 'error') {
     sendErrorPage(res, page.status, page.reason, target.href)
     return
   }
+
+  if (page.kind === 'redirect') {
+    // Redirects are followed by the browser, not here, so a proxied page's
+    // address always names the page it really is. The worker reads the
+    // site's origin from that address.
+    params.set('url', page.url.href)
+    res.statusCode = 302
+    res.setHeader('Location', `/proxy?${params}`)
+    res.setHeader('Cache-Control', 'no-store')
+    res.end()
+    return
+  }
+
+  servedOrigins.add(page.url.origin)
 
   const scheme = server.config.server.https ? 'https' : 'http'
   const ourOrigin = `${scheme}://${req.headers.host}`
@@ -147,30 +218,51 @@ async function fetchPage(target: URL): Promise<PageResult> {
   try {
     const response = await fetch(target, {
       headers: BROWSER_HEADERS,
-      redirect: 'follow',
+      // Handed back to the browser to follow; see handleProxy.
+      redirect: 'manual',
       signal,
     })
 
+    const location = response.headers.get('location')
+    if (response.status >= 300 && response.status < 400 && location) {
+      void response.body?.cancel()
+      return redirectTo(location, target)
+    }
+
     if (!response.ok) {
       void response.body?.cancel()
-      return { ok: false, status: 502, reason: describeStatus(response.status) }
+      return { kind: 'error', status: 502, reason: describeStatus(response.status) }
     }
 
     const type = response.headers.get('content-type') ?? ''
     if (type && !/text\/html|application\/xhtml\+xml/i.test(type)) {
       void response.body?.cancel()
       return {
-        ok: false,
+        kind: 'error',
         status: 502,
         reason: `That address is a file (${type.split(';')[0]}), not a web page.`,
       }
     }
 
     const bytes = await response.arrayBuffer()
-    // After redirects: http → https, example.com → www.example.com, and so on.
-    return { ok: true, html: decodeHtml(bytes, type), url: new URL(response.url) }
+    // response.url rather than target: the same address, minus any #section,
+    // which names a place on the page rather than a different page.
+    return { kind: 'page', html: decodeHtml(bytes, type), url: new URL(response.url) }
   } catch (error) {
     return describeNetworkError(error)
+  }
+}
+
+/** http → https, example.com → www.example.com, and so on. */
+function redirectTo(location: string, from: URL): PageResult {
+  try {
+    return { kind: 'redirect', url: new URL(location, from) }
+  } catch {
+    return {
+      kind: 'error',
+      status: 502,
+      reason: "The site redirected to an address that isn't valid.",
+    }
   }
 }
 
@@ -220,7 +312,7 @@ function describeNetworkError(error: unknown): PageResult {
     code === 'UND_ERR_CONNECT_TIMEOUT'
   ) {
     return {
-      ok: false,
+      kind: 'error',
       status: 504,
       reason: "The site didn't answer in time. It may be down, or unreachable from here.",
     }
@@ -238,7 +330,93 @@ function describeNetworkError(error: unknown): PageResult {
     reason = 'The site hung up on us. It may block automated loading.'
   }
 
-  return { ok: false, status: 502, reason }
+  return { kind: 'error', status: 502, reason }
+}
+
+// --- files for the worker ---------------------------------------------------
+
+/**
+ * GET /proxy-asset?url=… — one of a proxied page's files, fetched for
+ * server/proxy-worker.js. Only from sites whose pages were loaded through
+ * the proxy, and only for a fetch(): opened as a page, it would show the
+ * site's file on our origin with none of our changes.
+ */
+async function handleAsset(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.statusCode = 405
+    res.end()
+    return
+  }
+
+  const dest = req.headers['sec-fetch-dest']
+  const params = new URL(req.url ?? '/', 'http://localhost').searchParams
+  const target = parseTarget(params.get('url') ?? '')
+  if ((dest && dest !== 'empty') || !target || !servedOrigins.has(target.origin)) {
+    res.statusCode = 403
+    res.end()
+    return
+  }
+
+  const response = await fetch(target, {
+    method: req.method,
+    headers: { ...BROWSER_HEADERS, Accept: '*/*' },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  })
+
+  res.statusCode = response.status
+  for (const name of ['content-type', 'cache-control']) {
+    const value = response.headers.get(name)
+    if (value) res.setHeader(name, value)
+  }
+  res.end(Buffer.from(await response.arrayBuffer()))
+}
+
+function hasCookie(req: IncomingMessage, name: string): boolean {
+  return (req.headers.cookie ?? '')
+    .split(';')
+    .some((cookie) => cookie.trim().startsWith(`${name}=`))
+}
+
+/**
+ * Installs the worker, then reloads so the page comes through it. Shows up
+ * the first time a browser uses the proxy, and after a hard refresh, which
+ * skips the worker on purpose.
+ */
+function sendWorkerSetupPage(res: ServerResponse): void {
+  res.statusCode = 200
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-store')
+  res.end(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loading… — Screen Review</title>
+<link rel="icon" href="data:,">
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #5c6472;
+    background: #f6f7f9; }
+</style>
+</head>
+<body>
+<p>Loading the page…</p>
+<script>
+  // Reload once whatever happens: through the worker if it installed, and
+  // without it if not. The cookie tells the server this was the one try.
+  const reload = () => {
+    document.cookie = '${WORKER_TRIED_COOKIE}=1; path=/proxy; max-age=30'
+    location.reload()
+  }
+  setTimeout(reload, 5000)
+  Promise.resolve()
+    .then(() => navigator.serviceWorker.register('${WORKER_PATH}', { scope: '/proxy' }))
+    .then(() => navigator.serviceWorker.ready)
+    .then((registration) => registration.navigationPreload.enable())
+    .then(reload, reload)
+</script>
+</body>
+</html>`)
 }
 
 // --- rewriting --------------------------------------------------------------
