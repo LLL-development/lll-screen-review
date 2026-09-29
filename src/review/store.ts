@@ -83,6 +83,10 @@ export function onChange(listener: () => void): void {
 /** Every mutation ends here, so this is the one place that has to persist. */
 function notify(): void {
   save()
+  emit()
+}
+
+function emit(): void {
   for (const listener of listeners) listener()
 }
 
@@ -90,9 +94,12 @@ function notify(): void {
 
 /** Versioned so a future shape change can be told apart from this one. */
 const STORAGE_KEY = 'screen-review:comments:v1'
+const ID_KEY = 'screen-review:next-id:v1'
 
 /** Which list this page reads and writes; set by loadComments. */
 let storageKey = STORAGE_KEY
+/** Where the next number to hand out is kept, beside that list. */
+let idKey = ID_KEY
 
 /**
  * Restores saved comments. Call once, before anything reads them.
@@ -104,12 +111,24 @@ let storageKey = STORAGE_KEY
  */
 export function loadComments(page?: string): void {
   storageKey = page ? `${STORAGE_KEY}:${page}` : STORAGE_KEY
+  idKey = page ? `${ID_KEY}:${page}` : ID_KEY
   load()
+
+  // Another tab on the same page reads and writes the same list. Without
+  // this, each tab would save over the other's comments with its own, and
+  // both would hand out the same numbers. A null key means storage was
+  // cleared.
+  window.addEventListener('storage', (event) => {
+    if (event.key !== null && event.key !== storageKey && event.key !== idKey) return
+    load()
+    emit()
+  })
 }
 
 function save(): void {
   try {
     localStorage.setItem(storageKey, JSON.stringify(comments))
+    localStorage.setItem(idKey, String(nextId))
   } catch {
     // Private windows and full quotas both throw. Losing persistence is not a
     // reason to break the page, so carry on with the in-memory copy.
@@ -117,21 +136,30 @@ function save(): void {
 }
 
 function load(): void {
+  comments.length = 0
+  nextId = 1
+
   try {
     const raw = localStorage.getItem(storageKey)
-    if (!raw) return
+    const parsed: unknown = raw ? JSON.parse(raw) : []
 
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return
-
-    for (const item of parsed) {
-      const entry = toComment(item)
-      if (entry) comments.push(entry)
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        const entry = toComment(item)
+        // Two entries with one number can't both be pinned, resolved or
+        // deleted; keep the first.
+        if (entry && !comments.some((c) => c.id === entry.id)) comments.push(entry)
+      }
     }
 
-    // Carry on numbering from the highest id we restored, so a new comment
-    // never reuses a number that is already pinned to the page.
-    nextId = comments.reduce((max, c) => Math.max(max, c.id), 0) + 1
+    // Carry on numbering past both the highest id restored and the saved
+    // counter. The counter matters once the newest comment is deleted: its
+    // number may already have been copied somewhere, so it is never reused.
+    const saved = Number(localStorage.getItem(idKey))
+    nextId = Math.max(
+      comments.reduce((max, c) => Math.max(max, c.id), 0) + 1,
+      Number.isInteger(saved) ? saved : 1,
+    )
   } catch {
     // Anything unreadable is treated as "no saved comments" rather than an
     // error: a corrupt entry should not stop the tool from loading.
@@ -147,7 +175,8 @@ function toComment(value: unknown): ReviewComment | null {
   if (typeof value !== 'object' || value === null) return null
 
   const raw = value as Record<string, unknown>
-  if (typeof raw.id !== 'number') return null
+  // Pin numbers: whole and positive, or the pin would read "1.5" or "-3".
+  if (typeof raw.id !== 'number' || !Number.isInteger(raw.id) || raw.id < 1) return null
   if (typeof raw.selector !== 'string') return null
   if (typeof raw.comment !== 'string') return null
 
@@ -156,8 +185,9 @@ function toComment(value: unknown): ReviewComment | null {
     selector: raw.selector,
     comment: raw.comment,
     url: typeof raw.url === 'string' ? raw.url : '',
+    // A date that doesn't parse would show up as "Invalid Date".
     createdAt:
-      typeof raw.createdAt === 'string'
+      typeof raw.createdAt === 'string' && !Number.isNaN(Date.parse(raw.createdAt))
         ? raw.createdAt
         : new Date().toISOString(),
     status: raw.status === 'resolved' ? 'resolved' : 'open',
