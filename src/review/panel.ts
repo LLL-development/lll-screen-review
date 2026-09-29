@@ -13,8 +13,11 @@ import {
   setStatus,
   type ReviewComment,
 } from './store'
-import { showHighlight, hideHighlight } from './highlight'
-import { findElement, markAsUi } from './ui'
+import { previewHighlight, endPreview } from './highlight'
+import { attachUi, findElement, markAsUi, mountUi } from './ui'
+
+/** How often each row re-checks whether its element is still on the page. */
+const RECHECK_MS = 1000
 
 const panel = markAsUi(document.createElement('aside'))
 panel.className = 'sr-panel'
@@ -23,10 +26,19 @@ panel.hidden = true
 /** Collapsed hides the list and keeps the header, so the page stays visible. */
 let collapsed = false
 
+/** One per row on screen: re-checks that row's "Element not found" tag. */
+let rowChecks: (() => void)[] = []
+
 export function mountPanel(): void {
-  document.body.appendChild(panel)
+  mountUi(panel)
   onChange(render)
   render()
+
+  // Elements come and go without the comments changing — a menu opens, the
+  // page re-renders — so the tags are kept up to date on a timer too.
+  setInterval(() => {
+    if (!panel.hidden) for (const check of rowChecks) check()
+  }, RECHECK_MS)
 }
 
 export function setPanelVisible(visible: boolean): void {
@@ -45,6 +57,11 @@ function setCollapsed(next: boolean): void {
 
 function render(): void {
   const comments = getComments()
+  // The list is rebuilt from scratch, which would jump it back to the top —
+  // right after you resolve something near the bottom.
+  const scrolled = panel.querySelector('.sr-panel-list')?.scrollTop ?? 0
+
+  rowChecks = []
   panel.replaceChildren(buildHeader(comments))
 
   if (collapsed) return
@@ -65,6 +82,7 @@ function render(): void {
     list.appendChild(buildRow(comment))
   }
   panel.appendChild(list)
+  list.scrollTop = scrolled
 }
 
 function buildHeader(comments: readonly ReviewComment[]): HTMLElement {
@@ -96,9 +114,12 @@ function buildHeader(comments: readonly ReviewComment[]): HTMLElement {
   copy.textContent = 'Copy JSON'
   copy.disabled = comments.length === 0
   copy.addEventListener('click', async () => {
-    await navigator.clipboard.writeText(JSON.stringify(getComments(), null, 2))
-    copy.textContent = 'Copied'
-    setTimeout(() => (copy.textContent = 'Copy JSON'), 1200)
+    const json = JSON.stringify(getComments(), null, 2)
+    const copied = await copyText(json)
+    // Not copied: the console still has it, one select-all away.
+    if (!copied) console.log('[Screen Review] comments as JSON:\n' + json)
+    copy.textContent = copied ? 'Copied' : 'Copy failed — see console'
+    setTimeout(() => (copy.textContent = 'Copy JSON'), copied ? 1200 : 3000)
   })
 
   header.append(collapse, title, count, copy)
@@ -130,7 +151,8 @@ function buildRow(comment: ReviewComment): HTMLElement {
   remove.addEventListener('click', (event) => {
     event.stopPropagation()
     removeComment(comment.id)
-    hideHighlight()
+    // The row is gone, so it will never get its mouseleave.
+    endPreview()
   })
 
   const head = document.createElement('div')
@@ -160,7 +182,8 @@ function buildRow(comment: ReviewComment): HTMLElement {
 
   const time = document.createElement('time')
   time.className = 'sr-row-time'
-  time.textContent = new Date(comment.createdAt).toLocaleTimeString()
+  time.dateTime = comment.createdAt
+  time.textContent = formatTime(comment.createdAt)
 
   const resolve = document.createElement('button')
   resolve.type = 'button'
@@ -189,16 +212,47 @@ function buildRow(comment: ReviewComment): HTMLElement {
   }
 
   syncMissing(findTarget())
+  rowChecks.push(() => syncMissing(findTarget()))
 
   row.addEventListener('mouseenter', () => {
     const target = findTarget()
     syncMissing(target)
-    if (target) showHighlight(target, comment.selector)
+    if (target) previewHighlight(target, comment.selector)
   })
-  row.addEventListener('mouseleave', () => hideHighlight())
+  row.addEventListener('mouseleave', () => endPreview())
   row.addEventListener('click', () => {
     findTarget()?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   })
 
   return row
+}
+
+/** Just the time for today's comments; older ones need the date too. */
+function formatTime(iso: string): string {
+  const date = new Date(iso)
+  return date.toDateString() === new Date().toDateString()
+    ? date.toLocaleTimeString()
+    : date.toLocaleString()
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    // No clipboard API off localhost over plain http, or the browser said
+    // no. The old select-and-copy way still works in most of those cases.
+    const area = markAsUi(document.createElement('textarea'))
+    area.value = text
+    area.style.cssText = 'position:fixed;top:0;left:0;opacity:0'
+    attachUi(area)
+    area.select()
+    try {
+      return document.execCommand('copy')
+    } catch {
+      return false
+    } finally {
+      area.remove()
+    }
+  }
 }
