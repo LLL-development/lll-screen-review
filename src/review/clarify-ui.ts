@@ -88,7 +88,7 @@ export function createClarifySection(input: {
   async function compose(answer: string): Promise<void> {
     if (!answer.trim()) return
 
-    section.replaceChildren(note('Writing it up…'))
+    show(note('Writing it up…'))
     try {
       const draft = await composeRequirement({
         ...inputFor(),
@@ -108,7 +108,7 @@ export function createClarifySection(input: {
     heading.className = 'sr-clarify-question'
     heading.textContent = text
 
-    section.replaceChildren(heading)
+    show(heading)
 
     if (options.length > 0) {
       const list = document.createElement('div')
@@ -131,7 +131,9 @@ export function createClarifySection(input: {
     answer.className = 'sr-clarify-answer'
     answer.placeholder = options.length > 0 ? 'Or answer in your own words' : 'Your answer'
     answer.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
+      // With an input method (Japanese, Chinese…), Enter first confirms the
+      // characters being composed; only the next one sends the answer.
+      if (event.key === 'Enter' && !event.isComposing) {
         event.preventDefault()
         void compose(answer.value)
       }
@@ -156,23 +158,34 @@ export function createClarifySection(input: {
     label.className = 'sr-clarify-label'
     label.textContent = 'Clarified requirement — edit if this is not quite right'
 
-    requirementBox = document.createElement('textarea')
-    requirementBox.className = 'sr-clarify-requirement'
-    requirementBox.value = draft
-    label.appendChild(requirementBox)
+    const box = document.createElement('textarea')
+    box.className = 'sr-clarify-requirement'
+    box.value = draft
+    label.appendChild(box)
 
-    section.replaceChildren(label, note('Saved with your comment when you press Save.'))
+    show(label, note('Saved with your comment when you press Save.'))
+    requirementBox = box
   }
 
   function showNote(text: string): void {
-    section.replaceChildren(note(text))
+    show(note(text))
   }
 
   function showError(error: unknown): void {
     const message = error instanceof Error ? error.message : 'Clarification failed.'
     const failed = note(message)
     failed.classList.add('sr-clarify-error')
-    section.replaceChildren(failed)
+    show(failed)
+  }
+
+  /**
+   * Replaces what the section shows. Any draft on screen goes with it, and
+   * must not be saved: asking again after a draft would otherwise store the
+   * old wording without the reviewer seeing it.
+   */
+  function show(...nodes: Node[]): void {
+    requirementBox = null
+    section.replaceChildren(...nodes)
   }
 
   function note(text: string): HTMLElement {

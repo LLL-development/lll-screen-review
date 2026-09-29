@@ -94,11 +94,17 @@ export async function composeRequirement(
 }
 
 async function post(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  let response: Response
+  try {
+    response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    // The browser's own wording here is just "Failed to fetch".
+    throw new Error("Couldn't reach the dev server. Is `npm run dev` still running?")
+  }
 
   const data = (await response
     .json()
