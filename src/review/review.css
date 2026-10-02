@@ -536,6 +536,38 @@ html.sr-active .sr-popup button {
   cursor: default;
 }
 
+/* --- comments grouped by page ---------------------------------------------- */
+
+.sr-panel-group {
+  padding: 6px 12px;
+  border-bottom: 1px solid #eef0f4;
+  background: #f8f9fb;
+  color: #7a828f;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Left on another page: the tag says which, and the row goes there. */
+.sr-row-page {
+  min-width: 0;
+  overflow: hidden;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef0f4;
+  color: #3a4252;
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-row-elsewhere:hover .sr-row-page {
+  background: #2f5bd7;
+  color: #fff;
+}
+
 /* --- AI clarification ------------------------------------------------------ */
 
 .sr-popup {

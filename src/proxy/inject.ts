@@ -17,7 +17,12 @@ const pageUrl =
 
 const runScripts = new URLSearchParams(location.search).get('scripts') !== 'off'
 
-startReviewTool({ pageUrl })
+startReviewTool({
+  pageUrl,
+  // Going to a comment left on another page: through the proxy, like
+  // every other way of moving around the site.
+  goToPage: (url) => location.assign(proxyAddress(url, runScripts)),
+})
 keepNavigationInProxy()
 scrollToSection()
 

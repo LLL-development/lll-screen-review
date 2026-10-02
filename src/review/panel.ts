@@ -1,20 +1,24 @@
 /**
  * The live list of comments, shown in a panel on the right.
  *
- * It redraws itself whenever the store changes. Hovering a row re-highlights
- * the element that comment is about; clicking a row scrolls to it. Rows can be
- * resolved, which mutes them here and mutes their pin on the page.
+ * It lists the whole site's comments: this page's first, then the ones left
+ * on other pages. It redraws itself whenever the store changes. Hovering a
+ * row for this page re-highlights the element that comment is about, and
+ * clicking it scrolls there; clicking one for another page goes to that
+ * page. Rows can be resolved, which mutes them here and mutes their pin.
  */
 
 import {
   getComments,
+  isOnThisPage,
   onChange,
+  pageKey,
   removeComment,
   setStatus,
   type ReviewComment,
 } from './store'
 import { previewHighlight, endPreview } from './highlight'
-import { attachUi, findElement, markAsUi, mountUi } from './ui'
+import { attachUi, findElement, markAsUi, mountUi, onRemoveUi } from './ui'
 
 /** How often each row re-checks whether its element is still on the page. */
 const RECHECK_MS = 1000
@@ -29,16 +33,21 @@ let collapsed = false
 /** One per row on screen: re-checks that row's "Element not found" tag. */
 let rowChecks: (() => void)[] = []
 
-export function mountPanel(): void {
+/** What clicking a comment from another page does; supplied by review.ts. */
+let goTo: (comment: ReviewComment) => void = () => {}
+
+export function mountPanel(goToComment: (comment: ReviewComment) => void): void {
+  goTo = goToComment
   mountUi(panel)
   onChange(render)
   render()
 
   // Elements come and go without the comments changing — a menu opens, the
   // page re-renders — so the tags are kept up to date on a timer too.
-  setInterval(() => {
+  const timer = setInterval(() => {
     if (!panel.hidden) for (const check of rowChecks) check()
   }, RECHECK_MS)
+  onRemoveUi(() => clearInterval(timer))
 }
 
 export function setPanelVisible(visible: boolean): void {
@@ -75,14 +84,36 @@ function render(): void {
     return
   }
 
+  // Newest first: the comment you just left should be the one you can see.
+  const newestFirst = [...comments].reverse()
+  const here = newestFirst.filter(isOnThisPage)
+  const elsewhere = newestFirst.filter((c) => !isOnThisPage(c))
+
   const list = document.createElement('ul')
   list.className = 'sr-panel-list'
-  // Newest first: the comment you just left should be the one you can see.
-  for (const comment of [...comments].reverse()) {
-    list.appendChild(buildRow(comment))
+
+  // A list of this page's comments alone needs no headings.
+  if (elsewhere.length > 0) list.appendChild(buildGroupHeading('This page', here.length))
+  if (elsewhere.length > 0 && here.length === 0) {
+    const none = document.createElement('li')
+    none.className = 'sr-panel-empty'
+    none.textContent = 'Nothing on this page yet.'
+    list.appendChild(none)
   }
+  for (const comment of here) list.appendChild(buildRow(comment))
+
+  if (elsewhere.length > 0) list.appendChild(buildGroupHeading('Other pages', elsewhere.length))
+  for (const comment of elsewhere) list.appendChild(buildRow(comment))
+
   panel.appendChild(list)
   list.scrollTop = scrolled
+}
+
+function buildGroupHeading(label: string, count: number): HTMLElement {
+  const heading = document.createElement('li')
+  heading.className = 'sr-panel-group'
+  heading.textContent = `${label} · ${count}`
+  return heading
 }
 
 function buildHeader(comments: readonly ReviewComment[]): HTMLElement {
@@ -196,9 +227,24 @@ function buildRow(comment: ReviewComment): HTMLElement {
 
   const foot = document.createElement('div')
   foot.className = 'sr-row-foot'
-  foot.append(status, missing, time, resolve)
-
   row.append(head, text, clarified, foot)
+
+  // Left on another page: its element is there, not here, so there is
+  // nothing to look up or outline. The row says which page, and goes there.
+  if (!isOnThisPage(comment)) {
+    const page = pageLabel(comment.url)
+    const where = document.createElement('span')
+    where.className = 'sr-row-page'
+    where.textContent = `→ ${page}`
+
+    foot.append(status, where, time, resolve)
+    row.classList.add('sr-row-elsewhere')
+    row.title = `Go to ${page}`
+    row.addEventListener('click', () => goTo(comment))
+    return row
+  }
+
+  foot.append(status, missing, time, resolve)
 
   const findTarget = () => findElement(comment.selector)
 
@@ -225,6 +271,18 @@ function buildRow(comment: ReviewComment): HTMLElement {
   })
 
   return row
+}
+
+/** A comment's page, short enough for a tag: "/about", or "Home page". */
+function pageLabel(url: string): string {
+  try {
+    const { pathname, search, hash } = new URL(pageKey(url))
+    const path = pathname + search + hash
+    return path === '/' ? 'Home page' : decodeURI(path)
+  } catch {
+    // Not an address, or one with a stray % in it: show it as it is.
+    return url
+  }
 }
 
 /** Just the time for today's comments; older ones need the date too. */

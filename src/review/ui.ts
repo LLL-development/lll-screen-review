@@ -22,6 +22,27 @@ export function isOurUi(el: Element): boolean {
 const mounted = new Set<Element>()
 let watcher: MutationObserver | null = null
 
+/** What each piece needs undone when the tool comes off the page. */
+const cleanups: (() => void)[] = []
+
+/** Registers something to undo when the tool is taken off the page. */
+export function onRemoveUi(cleanup: () => void): void {
+  cleanups.push(cleanup)
+}
+
+/**
+ * Takes every piece mounted with mountUi off the page, and stops whatever
+ * kept them up to date. Only the browser extension does this, when it is
+ * switched off for a tab.
+ */
+export function removeUi(): void {
+  watcher?.disconnect()
+  watcher = null
+  for (const el of mounted) el.remove()
+  mounted.clear()
+  for (const cleanup of cleanups.splice(0)) cleanup()
+}
+
 /**
  * Adds one of the tool's pieces to the page, for as long as the page lasts.
  *

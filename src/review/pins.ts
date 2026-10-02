@@ -10,8 +10,8 @@
  * deleting a comment updates them without anyone having to say so.
  */
 
-import { getComments, onChange, type ReviewComment } from './store'
-import { findElement, markAsUi, mountUi } from './ui'
+import { getComments, isOnThisPage, onChange, type ReviewComment } from './store'
+import { findElement, markAsUi, mountUi, onRemoveUi } from './ui'
 
 /** How often the selectors are looked up again; see track. */
 const RECHECK_MS = 500
@@ -39,6 +39,11 @@ export function mountPins(handler: (comment: ReviewComment) => void): void {
   onActivate = handler
   mountUi(layer)
   onChange(render)
+  onRemoveUi(() => {
+    cancelAnimationFrame(frame)
+    frame = 0
+    placed.length = 0
+  })
   render()
 }
 
@@ -47,6 +52,11 @@ function render(): void {
   placed.length = 0
 
   for (const comment of getComments()) {
+    // A comment from another page of the site belongs to an element there.
+    // Its selector may well match something here too — "main > h1" — but
+    // that's a different element.
+    if (!isOnThisPage(comment)) continue
+
     const el = findElement(comment.selector)
     // No element to pin to: the comment still exists and still shows up in the
     // panel, there is just nowhere on the page to put a marker — for now.

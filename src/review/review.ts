@@ -1,5 +1,5 @@
 import { finder } from '@medv/finder'
-import { attachUi, findElement, isOurUi, markAsUi, mountUi } from './ui'
+import { attachUi, findElement, isOurUi, markAsUi, mountUi, removeUi } from './ui'
 import {
   mountHighlight,
   showHighlight,
@@ -9,8 +9,12 @@ import {
 import {
   addComment,
   getComments,
+  isOnThisPage,
   loadComments,
   onChange,
+  pageKey,
+  setPage,
+  unloadComments,
   type ReviewComment,
 } from './store'
 import { captureContext, type ElementContext } from './context'
@@ -32,10 +36,16 @@ export type ReviewToolOptions = {
   /**
    * The real address of the page under review, when the address bar says
    * something else. A page loaded through the proxy lives at localhost, but
-   * its comments should say which site they are about — and each page keeps
-   * its own list. Leave it out for a page reviewed where it lives.
+   * its comments should say which site and page they are about. Leave it out
+   * for a page reviewed where it lives.
    */
   pageUrl?: string
+  /**
+   * Opens another page of the site, to go to a comment left there. Loads the
+   * address in this tab unless told otherwise; the proxy loads it through
+   * itself instead, or you'd end up on the real site without the tool.
+   */
+  goToPage?: (url: string) => void
 }
 
 /**
@@ -69,19 +79,42 @@ let popup: {
   stopPlacing: () => void
 } | null = null
 
-/** See ReviewToolOptions.pageUrl. */
-let pageUrl: string | undefined
+/** The page under review, with any #fragment; see ReviewToolOptions.pageUrl. */
+let pageUrl = ''
+
+/** See ReviewToolOptions.goToPage. */
+let goToPage = (url: string) => location.assign(url)
+
+/** False once the tool has been taken off the page; see stopReviewTool. */
+let running = false
+
+/**
+ * Remembered per tab, so review mode stays as it was from one page of the
+ * site to the next.
+ */
+const MODE_KEY = 'screen-review:review-mode'
+
+/**
+ * The comment to open once the page it was left on has loaded; see
+ * goToComment.
+ */
+const OPEN_KEY = 'screen-review:open-comment'
+
+/** How long a page just opened gets to show a comment's element. */
+const ARRIVAL_WAIT_MS = 5000
 
 const toggle = buildToggle()
 
 /** Mounts the tool onto the current page. Call once, on page load. */
 export function startReviewTool(options: ReviewToolOptions = {}): void {
-  pageUrl = options.pageUrl
+  running = true
+  pageUrl = options.pageUrl ?? location.href
+  if (options.goToPage) goToPage = options.goToPage
   loadComments(pageUrl)
 
   mountUi(toggle)
   mountHighlight()
-  mountPanel()
+  mountPanel(goToComment)
   mountPins(openCommentReader)
 
   // Comments restored from a previous visit should be visible straight away,
@@ -96,14 +129,60 @@ export function startReviewTool(options: ReviewToolOptions = {}): void {
   window.addEventListener('click', onClick, true)
   for (const type of PRESS_EVENTS) window.addEventListener(type, onPress, true)
   window.addEventListener('keydown', onKeyDown, true)
+  window.addEventListener('beforeunload', onBeforeUnload)
 
   console.log(
     '[Screen Review] ready — hit "Review mode" at the bottom right to start.',
   )
+
+  if (readSession(MODE_KEY) === 'on') setReviewMode(true)
+  openRequestedComment()
 }
 
-function setReviewMode(on: boolean): void {
+/**
+ * The page under review changed without a new one loading, as single-page
+ * apps do. The pins and the panel switch to that page's comments.
+ */
+export function setPageUrl(url: string): void {
+  if (!running) return
+  const samePage = pageKey(url) === pageKey(pageUrl)
+  pageUrl = url
+  if (samePage) return
+
+  // A comment being read belongs to the page just left. One being written
+  // stays: it already knows which page it is about.
+  if (popup && !popup.hasDraft()) closePopup()
+  setPage(url)
+}
+
+/**
+ * Takes the tool off the page: every piece of it, every listener, every
+ * timer. The browser extension does this when switched off for a tab; this
+ * copy can't be started again afterwards, so the extension puts a fresh one
+ * on instead.
+ */
+export function stopReviewTool(): void {
+  if (!running) return
+  running = false
+
+  closePopup()
+  window.removeEventListener('mousemove', onMouseMove, true)
+  window.removeEventListener('click', onClick, true)
+  for (const type of PRESS_EVENTS) window.removeEventListener(type, onPress, true)
+  window.removeEventListener('keydown', onKeyDown, true)
+  window.removeEventListener('beforeunload', onBeforeUnload)
+  document.documentElement.classList.remove('sr-active')
+
+  removeUi()
+  unloadComments()
+  console.log('[Screen Review] switched off for this page.')
+}
+
+/** Same as pressing the Review mode pill. */
+export function setReviewMode(on: boolean): void {
+  if (!running) return
   reviewMode = on
+  writeSession(MODE_KEY, on ? 'on' : 'off')
   document.documentElement.classList.toggle('sr-active', on)
   toggle.dataset.on = String(on)
 
@@ -245,8 +324,10 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
 
   const selector = selectorFor(el)
   // Captured once, when the popup opens: the clarify step and the saved
-  // comment then describe the same moment, even if the page changes meanwhile.
+  // comment then describe the same moment, even if the page changes meanwhile
+  // — a single-page app can move on to another page under an open box.
   const context = captureContext(el)
+  const page = pageUrl
   showHighlight(el, selector)
 
   const box = markAsUi(document.createElement('div'))
@@ -287,7 +368,7 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
       textarea.focus()
       return
     }
-    capture(selector, text, context, clarify.getClarified())
+    capture(selector, text, context, clarify.getClarified(), page)
     closePopup()
   }
 
@@ -426,17 +507,69 @@ function openCommentReader(comment: ReviewComment): void {
   }
 }
 
+/**
+ * Goes to the page a comment was left on, and opens it there; see
+ * openRequestedComment. Clicking a comment from another page in the panel
+ * does this.
+ */
+function goToComment(comment: ReviewComment): void {
+  // Not at the cost of a comment still being written.
+  if (popup?.hasDraft()) {
+    nudgePopup()
+    return
+  }
+  writeSession(OPEN_KEY, String(comment.id))
+  goToPage(comment.url)
+}
+
+/**
+ * Opens the comment goToComment came here for, once its element is on the
+ * page. Plenty of pages build themselves after loading, so the element gets
+ * a few seconds to turn up; if it never does, the comment opens anyway, with
+ * nothing to point at.
+ */
+function openRequestedComment(): void {
+  const id = Number(readSession(OPEN_KEY))
+  removeSession(OPEN_KEY)
+  const comment = getComments().find((c) => c.id === id && isOnThisPage(c))
+  if (!comment) return
+
+  const started = performance.now()
+  const attempt = () => {
+    // Switched off, moved on, or busy with something else in the meantime.
+    if (!running || popup || !isOnThisPage(comment)) return
+
+    const el = findElement(comment.selector)
+    if (!el && performance.now() - started < ARRIVAL_WAIT_MS) {
+      setTimeout(attempt, 250)
+      return
+    }
+    el?.scrollIntoView({ block: 'center' })
+    openCommentReader(comment)
+  }
+  attempt()
+}
+
+/**
+ * Leaving the page — Back, a script moving it on, closing the tab — would
+ * throw away a comment still being written. The browser asks first.
+ */
+function onBeforeUnload(event: BeforeUnloadEvent): void {
+  if (popup?.hasDraft()) event.preventDefault()
+}
+
 /** Records a comment: into the store (so the panel shows it) and the console. */
 function capture(
   selector: string,
   comment: string,
   context: ElementContext,
   clarified: string,
+  url: string,
 ): void {
   const entry = addComment({
     selector,
     comment,
-    url: pageUrl ?? window.location.href,
+    url,
     context,
     // Only present when the reviewer went through the clarify step and kept
     // the wording.
@@ -497,6 +630,35 @@ function pathTo(el: Element): string {
     steps.unshift(`${CSS.escape(node.localName)}:nth-child(${index})`)
   }
   return ['html', ...steps].join(' > ')
+}
+
+/**
+ * sessionStorage belongs to this tab and this site, and survives moving
+ * between the site's pages. It can throw (storage blocked, sandboxed
+ * frames), in which case these just remember nothing.
+ */
+function readSession(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeSession(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value)
+  } catch {
+    // Nothing remembered; see readSession.
+  }
+}
+
+function removeSession(key: string): void {
+  try {
+    sessionStorage.removeItem(key)
+  } catch {
+    // Nothing to forget; see readSession.
+  }
 }
 
 function buildToggle(): HTMLButtonElement {

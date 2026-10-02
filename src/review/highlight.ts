@@ -12,7 +12,7 @@
  * box was showing before — the element a comment box is open on, say.
  */
 
-import { markAsUi, mountUi } from './ui'
+import { markAsUi, mountUi, onRemoveUi } from './ui'
 
 type Target = { el: Element; text: string }
 
@@ -31,6 +31,11 @@ let frame = 0
 
 export function mountHighlight(): void {
   mountUi(box)
+  onRemoveUi(() => {
+    cancelAnimationFrame(frame)
+    frame = 0
+    base = preview = null
+  })
 }
 
 export function showHighlight(el: Element, text: string): void {
