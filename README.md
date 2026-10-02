@@ -27,9 +27,10 @@ commented on.
 
 ## Status
 
-An early version, built to prove the idea works. It runs on a test page in this
-repo, or on a real website loaded through a dev-only proxy. There is no backend:
-comments live in your own browser and nobody else can see them.
+An early version, built to prove the idea works. It runs on any website through
+a browser extension, on a test page in this repo, or on a real website loaded
+through a dev-only proxy. There is no backend: comments live in your own
+browser and nobody else can see them.
 [Limitations](#limitations) is the honest list — read it before investing time.
 
 ## Quick start
@@ -45,6 +46,13 @@ Open the address it prints. You get a start screen: paste the address of a real
 page and press **Load page**, or follow the link to the local test page, a fake
 dashboard that always works offline. Either way there's a **Review mode** pill
 at the bottom right.
+
+To review any site in your own browser instead, build the extension and load
+it — see [The browser extension](#the-browser-extension):
+
+```bash
+npm run build:extension
+```
 
 The AI step is optional and stays hidden until you
 [configure it](#configuration). Everything else works straight away.
@@ -65,18 +73,102 @@ throw it away: the box shakes until you save or cancel it.
 | `Esc` | Close the box, or leave review mode |
 | Click a pin | Read that comment back, review mode on or off |
 | Hover a panel row | Outline that comment's element |
-| Click a panel row | Scroll to that element |
+| Click a panel row | Scroll to that element, or go to its page |
 
 Saving drops a numbered pin on the element. Pins stay on their element as the
 page scrolls, animates or re-renders, survive a refresh, and grey out when you
 resolve them. The panel on the right lists every comment, and **Copy JSON**
-hands you the lot.
+hands you the lot. Review mode stays on or off as you left it, through a
+refresh and from one page to the next.
 
 If an element can't be found any more, its comment stays in the panel tagged
 **ELEMENT NOT FOUND** rather than disappearing — and picks up again if the
 element comes back.
 
-## Reviewing a real website
+### Comments across a site
+
+Every page of a site shares one list. The panel shows this page's comments
+first, then **Other pages**, each tagged with the page it was left on: click
+one and you go to that page, where it opens on its element. Pins only appear
+on the page their comment was left on — `main > h1` on the About page is a
+different element from `main > h1` on the home page.
+
+Single-page apps, which change page without loading a new one, are followed
+too: the pins and the panel switch over as the address changes. A comment
+you're halfway through writing is never thrown away by moving on — the panel
+won't take you elsewhere until you save or cancel it, and the browser asks
+before leaving the page.
+
+## The browser extension
+
+The way to review any live site. The tool runs inside the real page, in your
+own browser: logged in, single-page apps included, nothing re-hosted. It
+works in Chrome, Edge, Brave and other Chromium browsers.
+
+### Loading it
+
+```bash
+npm run build:extension
+```
+
+1. Open `chrome://extensions` (or `brave://extensions`, `edge://extensions`).
+2. Turn on **Developer mode**.
+3. Press **Load unpacked** and pick the **`dist-extension`** folder. Not the
+   project folder: it has no manifest of its own.
+4. Pin **Screen Review** from the puzzle-piece menu so the icon stays in
+   sight.
+
+After changing the code, build again, press ↻ on the extension's card, and
+refresh the page. `npm run watch:extension` rebuilds on every save.
+
+### Switching it on and off
+
+Click the icon, or press `Alt`+`Shift`+`R`, and the tool appears on that tab
+with review mode on; the icon says **ON**. Click it again and the tool comes
+off the page completely — pill, pins and panel. The **Review mode** pill still
+switches between commenting and using the page as normal.
+
+While it's on, each page of the same site you go to in that tab gets the tool
+back. Going to a different site switches it off for that tab. That limit is
+deliberate: the extension asks for `activeTab`, which grants access to the
+site you clicked the icon on, rather than to every site you visit — so
+installing it doesn't warn that it can "read and change all your data on all
+websites".
+
+If the icon shows **!**, hover over it for the reason. Browser pages like
+`chrome://` ones, the extension store and the built-in PDF viewer are off
+limits to every extension.
+
+### How it fits together
+
+```
+toolbar icon ──► background.js ──injects──► content.js   (the tool, in the page)
+                      ▲                          │
+                      └──── AI step requests ◄───┘
+                      │
+                      └──► dev server /api/clarify
+```
+
+| File | Job |
+| --- | --- |
+| [`extension/manifest.json`](extension/manifest.json) | What the extension is and what it may do |
+| [`extension/background.js`](extension/background.js) | The icon, putting the tool back on each page, carrying AI requests |
+| [`src/extension/content.ts`](src/extension/content.ts) | Starts and stops the tool in the page; notices single-page apps moving on |
+| [`vite.extension.config.ts`](vite.extension.config.ts) | Bundles the tool into one plain script, `content.js` |
+
+The browser injects `content.js` as a plain script, never a module, so the
+build leaves nothing as an import.
+
+The AI step needs `npm run dev` running on port 5173. The tool runs as part of
+the page, and the browser treats its requests as the site's own, so a call to
+localhost is refused. The background script belongs to the extension, and
+`host_permissions` lets it make the call instead. Without the dev server, the
+**Ask AI to clarify** button stays hidden and everything else works.
+
+## Reviewing a real website through the proxy
+
+The extension above is the better route. The proxy stays because it needs
+nothing installed: paste an address and the page appears with the tool on it.
 
 Browsers won't let a script from one site read or draw over a page from
 another. That rule is what stops any site you visit from reading your email in a
@@ -135,8 +227,9 @@ sends each of these through the proxy instead:
   such as Chrome and Edge (see [Limitations](#limitations))
 
 Forms that *send* data, like a login or a contact form, can't be replayed
-through the proxy and go to the real site. Each page you visit keeps its own
-list of comments.
+through the proxy and go to the real site. Going to a comment left on another
+page goes through the proxy too. Every site loaded through it shares
+localhost's storage, so each keeps its list under its own address.
 
 ### What works, and what doesn't
 
@@ -169,9 +262,9 @@ through the proxy since it started. **Only load sites you trust with scripts
 on.** The dev server listens on your machine only; starting it with `--host`
 would open all of this to your network.
 
-The proper route for arbitrary live sites is a browser extension, which is
-allowed to run inside any page — on the real site, logged in, nothing re-hosted.
-See the [roadmap](#roadmap).
+The proper route for arbitrary live sites is
+[the browser extension](#the-browser-extension), which is allowed to run inside
+any page — on the real site, logged in, nothing re-hosted.
 
 ## How it works
 
@@ -182,10 +275,12 @@ test-page.html + src/style.css     the page being reviewed
 src/review/                        the tool doing the reviewing
 ```
 
-Nothing in `src/review/` knows about the test page, the start screen or the
-proxy. The tool is meant to be dropped onto any page — which is exactly what the
-proxy does. The only thing it can be told is the page's real address, through
-`startReviewTool({ pageUrl })`.
+Nothing in `src/review/` knows about the test page, the start screen, the
+proxy or the extension. The tool is meant to be dropped onto any page — which
+is exactly what the proxy and the extension do. All it can be told is the
+page's real address and how to open another page of the site, through
+`startReviewTool({ pageUrl, goToPage })`; the extension can also tell it the
+page changed under it, and take it off the page again.
 
 ### The store is the centre
 
@@ -200,8 +295,12 @@ Every view reads from the store and subscribes to it. Nothing tells anything
 else to update. Press **Resolve** in the panel and the panel doesn't reach over
 and recolour the pin — it calls `setStatus()`, the store notifies, and the pins
 module redraws itself. Add a third view tomorrow and it works the same way.
-Another tab open on the same page hears about each save and reloads the list,
-so two tabs never write over each other.
+
+The store keeps one list per site, and every change starts by reading back
+what's saved. Another tab on the same site, or a page brought back by the Back
+button, may have an older copy; starting from storage means it can't save
+over comments added since or hand out their numbers again. Other tabs hear
+about each save and redraw.
 
 | Module | Job |
 | --- | --- |
@@ -273,9 +372,11 @@ have written.
 }
 ```
 
-`id` doubles as the number on the pin. It's handed out in creation order and
-never reused, even after the newest comment is deleted. `url` is the real page's
-address, including for pages loaded through the proxy. `context` is the snapshot
+`id` doubles as the number on the pin. It's handed out in creation order across
+the whole site and never reused, even after the newest comment is deleted.
+`url` is the real page's address, including for pages loaded through the
+proxy, and decides which page pins the comment. Lists saved per page by
+earlier versions are merged into their site's list the first time it's opened. `context` is the snapshot
 that makes a comment readable later: its text comes from `innerText` rather than
 `textContent`, so it reflects what was actually visible, and `nearbyText` climbs
 the ancestors until it finds one saying more than the element itself. Full
@@ -363,6 +464,10 @@ Restart the dev server after editing `.env`, then reload the page.
 | **Ask AI to clarify** is missing | `.env` isn't set up; restart the dev server after editing it |
 | **Ask AI to clarify** is greyed out | The model isn't answering; start it and reload |
 | Comments vanished | Storage belongs to the exact address, so a different port counts as a different site |
+| "Manifest file is missing or unreadable" | **Load unpacked** was pointed at the project folder; pick `dist-extension` inside it |
+| Extension changes don't appear | `npm run build:extension`, press ↻ on the extension's card, refresh the page |
+| The extension icon shows **!** | Hover over it for why: a browser page, a page with its own copy of the tool (like the test page), or one opened before the extension was reloaded — refresh it |
+| The tool didn't come back on the next page | You went to a different site, or a page no extension may touch; click the icon again |
 
 ## Limitations
 
@@ -373,16 +478,18 @@ which is per-browser and per-device — switch browser, profile or port and
 they're gone, and clearing site data deletes them for good. For a review tool,
 not being able to send a review to anyone is the biggest thing missing.
 
-**Comments are only kept per page through the proxy.** Each proxied page gets
-its own list. A page reviewed where it lives, like the test page, uses one
-shared list — on a multi-page site every page would show every comment, some
-tagged not-found, some quietly matching the *wrong* element with the same
-selector.
+**The extension keeps comments in the site's own storage.** The tool runs as
+part of the page, so the `localStorage` it saves to is the site's: the site's
+scripts can read your comments, and clearing that site's data deletes them. A
+real backend fixes both.
+
+**A site's own CSS reaches the tool's UI**, through the extension and the
+proxy alike, so on some sites its buttons or text box look a little off.
+Moving the UI into a shadow DOM would wall it off.
 
 **The proxy is limited, and dev-only.** See
 [What works, and what doesn't](#what-works-and-what-doesnt). A built site has no
-`/proxy`, and the start screen says so. A site's own CSS also reaches the tool's
-UI, so on some sites its buttons or text box look a little off.
+`/proxy`, and the start screen says so.
 
 **Scripts can sometimes walk the page off the proxy.** Links and forms are kept
 inside it in every browser. A script that moves the page on by itself is only
@@ -408,7 +515,8 @@ site's modal `<dialog>` makes everything outside it unclickable, the tool
 included.
 
 **The AI route is dev-only.** It's part of the dev server, so a built site has
-no `/api/clarify` and the feature switches itself off.
+no `/api/clarify` and the feature switches itself off. The extension reaches it
+at `localhost:5173` only while `npm run dev` is running there.
 
 **Mouse only.** Hover outlining depends on `mousemove`, which has no touch
 equivalent.
@@ -421,11 +529,11 @@ management, and the panel isn't announced to screen readers.
 
 ## Roadmap
 
-1. A real backend, replacing the `localStorage` internals of `store.ts`. Nothing
+1. Turn a clarified comment into a Lorely ticket. Next up.
+2. A real backend, replacing the `localStorage` internals of `store.ts`. Nothing
    else should need to change — that's what the seam is for.
-2. A browser extension, so the tool runs on any live site, logged in, without
-   the proxy's limits.
-3. Move `/api/clarify` to that backend so clarification survives a build.
+3. Move `/api/clarify` to that backend so clarification survives a build, and
+   the extension no longer needs the dev server.
 4. Sturdier selectors: store more than one way to find each element, so a
    comment survives the page being restructured.
 5. Run it against a real app and see what breaks.
@@ -438,7 +546,11 @@ screen-review/
 ├── index.html              start screen: paste an address
 ├── test-page.html          the fake dashboard, for offline testing
 ├── vite.config.ts          the dev server, the /api/clarify route, the proxy
+├── vite.extension.config.ts  builds the extension into dist-extension/
 ├── .env.example            variable names for the AI step
+├── extension/              copied into the extension as it is
+│   ├── manifest.json       what the extension is and may do
+│   └── background.js       the icon, the tool on each page, AI requests
 ├── server/
 │   ├── proxy.ts            loads real pages; serves the worker and its files
 │   └── proxy-worker.js     fetches the files a proxied page would be refused
@@ -451,6 +563,8 @@ screen-review/
     ├── proxy/              runs inside a proxied page
     │   ├── inject.ts       starts the tool, keeps you inside the proxy
     │   └── address.ts      builds /proxy addresses
+    ├── extension/
+    │   └── content.ts      starts and stops the tool inside a page
     └── review/             the tool, independent of the page
 ```
 
@@ -466,6 +580,8 @@ screen-review/
 | `npm run dev` | Dev server, with the AI and proxy routes |
 | `npm run build` | Type-check, then build to `dist/` |
 | `npm run preview` | Serve the build (no AI or proxy routes) |
+| `npm run build:extension` | Build the extension into `dist-extension/` |
+| `npm run watch:extension` | The same, again on every save |
 
 [`@medv/finder`](https://github.com/antonmedv/finder) is the only runtime
-dependency. Vite and TypeScript are dev dependencies.
+dependency. Vite, TypeScript and `@types/chrome` are dev dependencies.
