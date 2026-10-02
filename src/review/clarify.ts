@@ -1,9 +1,9 @@
 /**
  * Talking to the clarification route.
  *
- * The browser only ever calls /api/clarify on this same dev server. It does
- * not know which model is behind it, where that model lives, or what key it
- * uses — all of that stays in vite.config.ts, server-side.
+ * The browser only ever calls /api/clarify on the dev server. It does not know
+ * which model is behind it, where that model lives, or what key it uses — all
+ * of that stays in vite.config.ts, server-side.
  */
 
 import type { ElementContext } from './context'
@@ -26,6 +26,22 @@ export type ClarifyInput = {
   context: ElementContext
 }
 
+/** What came back from /api/clarify: its status code and JSON body. */
+export type ClarifyResponse = {
+  ok: boolean
+  status: number
+  data: Record<string, unknown>
+}
+
+/**
+ * Gets one request to /api/clarify and back: a GET for the status when there
+ * is no body, a POST with it otherwise. Rejects, with a message the reviewer
+ * can act on, when the route can't be reached at all.
+ */
+export type ClarifySender = (
+  body?: Record<string, unknown>,
+) => Promise<ClarifyResponse>
+
 const OFFLINE: ClarifyStatus = { configured: false, reachable: false, model: '' }
 
 /**
@@ -35,8 +51,49 @@ const OFFLINE: ClarifyStatus = { configured: false, reachable: false, model: '' 
  *
  * Not `new URL('/api/clarify', import.meta.url)`: Vite rewrites that pattern
  * as a file import and the request ends up at /@fs/api/clarify.
+ *
+ * Worked out on first use rather than on load: in the browser extension this
+ * script is bundled into the page, has no address of its own, and never
+ * calls this.
  */
-const API_URL = `${new URL(import.meta.url).origin}/api/clarify`
+function apiUrl(): string {
+  return `${new URL(import.meta.url).origin}/api/clarify`
+}
+
+/** Straight to the dev server that served this script. */
+const sendDirect: ClarifySender = async (body) => {
+  let response: Response
+  try {
+    response = await fetch(
+      apiUrl(),
+      body && {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    )
+  } catch {
+    // The browser's own wording here is just "Failed to fetch".
+    throw new Error("Couldn't reach the dev server. Is `npm run dev` still running?")
+  }
+
+  const data = (await response
+    .json()
+    .catch(() => ({}))) as Record<string, unknown>
+
+  return { ok: response.ok, status: response.status, data }
+}
+
+let send: ClarifySender = sendDirect
+
+/**
+ * Routes requests some other way. The browser extension needs this: its copy
+ * of the tool runs inside someone else's page, which isn't allowed to call
+ * the dev server, so requests go through the extension instead.
+ */
+export function setClarifySender(sender: ClarifySender): void {
+  send = sender
+}
 
 /** Checked once per page load; the answer decides whether the button appears. */
 let statusPromise: Promise<ClarifyStatus> | null = null
@@ -48,10 +105,10 @@ export function clarifyStatus(): Promise<ClarifyStatus> {
 
 async function fetchStatus(): Promise<ClarifyStatus> {
   try {
-    const response = await fetch(API_URL)
+    const response = await send()
     if (!response.ok) return OFFLINE
 
-    const data = (await response.json()) as Partial<ClarifyStatus>
+    const data = response.data as Partial<ClarifyStatus>
     return {
       configured: data.configured === true,
       reachable: data.reachable === true,
@@ -94,21 +151,8 @@ export async function composeRequirement(
 }
 
 async function post(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  let response: Response
-  try {
-    response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-  } catch {
-    // The browser's own wording here is just "Failed to fetch".
-    throw new Error("Couldn't reach the dev server. Is `npm run dev` still running?")
-  }
-
-  const data = (await response
-    .json()
-    .catch(() => ({}))) as Record<string, unknown>
+  const response = await send(body)
+  const { data } = response
 
   if (!response.ok) {
     throw new Error(
