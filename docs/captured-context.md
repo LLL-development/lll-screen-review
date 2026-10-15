@@ -27,6 +27,7 @@ generic UX advice.
 
 | Field | Example | Why it is there |
 | --- | --- | --- |
+| `name` | `{ kind: "Text", label: "$12,480", place: "Revenue" }` | What the tool shows: the element as a person would call it |
 | `tagName` | `"p"`, `"button"` | Says whether this is text, a control, an image |
 | `text` | `"$12,480"` | Identifies the element to a person |
 | `nearbyText` | `"Revenue $12,480 View details"` | Orientation when the element alone says little |
@@ -62,6 +63,45 @@ storing the whole page.
 
 Both text fields are collapsed to single spaces and length-capped (200 and 300
 characters). That keeps stored comments small and keeps the AI prompt cheap.
+
+## The name
+
+The fields above are raw material. `name` is the same information turned into
+something a person would say, and it's what the hover label, the comment box
+and the panel show instead of the selector:
+
+| Clicked | Name |
+| --- | --- |
+| The `$12,480` figure | Text “$12,480” in Revenue |
+| A card's button | Button “View details” in Active users |
+| A cell in the signups table | Table cell “Pro” in Recent signups, Plan column |
+| The email input | Text field “Email address” in Invite a teammate |
+| A nav link | Link “Reports” in the navigation |
+
+It has three parts, all read off the page by
+[`src/review/describe.ts`](../src/review/describe.ts):
+
+- **kind**: what sort of thing it is. An ARIA `role` wins, then the tag, then
+  a guess for `<div>`s: one holding a heading is a Section, one holding only
+  text is Text, one with a background image and no text is an Image.
+- **label**: what it's called, looked for where a screen reader would look:
+  `aria-labelledby` and `aria-label`, then a field's `<label>`, an image's
+  `alt`, a placeholder, then the visible text. An icon on a button goes by the
+  button: Icon “Close”.
+- **place**: the heading leading the nearest section around it, a named region
+  (`<nav aria-label="Breadcrumb">`), or the part of the page it's in: the
+  navigation, the page header, the footer, a dialog. Table cells add their
+  column.
+
+The place is guessed cautiously. Only a heading that is a direct child of the
+section, or sits in a wrapper with nothing else in it, counts. A heading inside
+a sibling card is that card's title, not this element's, so the second card's
+heading isn't "in Revenue". When nothing qualifies the name has no place,
+which is better than a wrong one.
+
+Unlike `text`, the name keeps the words as they're written in the page. CSS
+puts plenty of headings in capitals, and `innerText` copies that, so "in
+REVENUE" becomes "in Revenue".
 
 ## Seeing it yourself
 
@@ -114,6 +154,7 @@ Press **Copy JSON** in the comments panel and paste it anywhere:
   "comment": "too small",
   "status": "open",
   "context": {
+    "name": { "kind": "Text", "label": "$12,480", "place": "Revenue" },
     "tagName": "p",
     "text": "$12,480",
     "nearbyText": "Revenue $12,480 View details",
@@ -135,5 +176,7 @@ surrounding text there is.
 ## Older comments
 
 Comments saved before context existed load with an empty context rather than
-being discarded. See `toContext` in
+being discarded. Ones saved before names existed get the best name their tag
+and text allow, with no place: Button “Send invite”. A comment with no context
+at all can only be called "Element". See `toContext` in
 [`src/review/store.ts`](../src/review/store.ts).

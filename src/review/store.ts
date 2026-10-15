@@ -18,6 +18,7 @@
  */
 
 import type { ElementContext } from './context'
+import { nameFromSaved, type ElementName } from './describe'
 
 /** Where a comment is in its life: still needs doing, or dealt with. */
 export type ReviewStatus = 'open' | 'resolved'
@@ -338,10 +339,12 @@ function toComment(value: unknown): ReviewComment | null {
 /**
  * Comments saved before context existed have none, so missing or malformed
  * context becomes an empty one rather than discarding an otherwise fine
- * comment.
+ * comment. Ones saved before names existed get the best name their tag and
+ * text allow.
  */
 function toContext(value: unknown): ElementContext {
   const empty: ElementContext = {
+    name: nameFromSaved('', ''),
     tagName: '',
     text: '',
     nearbyText: '',
@@ -355,14 +358,30 @@ function toContext(value: unknown): ElementContext {
     typeof raw.viewport === 'object' && raw.viewport !== null
       ? (raw.viewport as Record<string, unknown>)
       : {}
+  const tagName = typeof raw.tagName === 'string' ? raw.tagName : ''
+  const text = typeof raw.text === 'string' ? raw.text : ''
 
   return {
-    tagName: typeof raw.tagName === 'string' ? raw.tagName : '',
-    text: typeof raw.text === 'string' ? raw.text : '',
+    name: toName(raw.name) ?? nameFromSaved(tagName, text),
+    tagName,
+    text,
     nearbyText: typeof raw.nearbyText === 'string' ? raw.nearbyText : '',
     viewport: {
       width: typeof viewport.width === 'number' ? viewport.width : 0,
       height: typeof viewport.height === 'number' ? viewport.height : 0,
     },
+  }
+}
+
+function toName(value: unknown): ElementName | null {
+  if (typeof value !== 'object' || value === null) return null
+
+  const raw = value as Record<string, unknown>
+  if (typeof raw.kind !== 'string' || !raw.kind) return null
+
+  return {
+    kind: raw.kind,
+    label: typeof raw.label === 'string' ? raw.label : '',
+    place: typeof raw.place === 'string' ? raw.place : '',
   }
 }

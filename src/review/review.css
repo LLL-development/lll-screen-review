@@ -73,7 +73,7 @@
   border-radius: 3px;
   background: #2f5bd7;
   color: #fff;
-  font: 500 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: 500 11px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* For elements at the very top of the screen, where above would be off it. */
@@ -96,14 +96,73 @@
   color: #1b1f2a;
 }
 
-.sr-popup-selector {
-  margin-bottom: 8px;
+/* An element's name, wherever it is shown: the kind quietly, the label in
+   bold, the place underneath. */
+.sr-name {
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.sr-name-kind {
+  color: #5c6472;
+}
+
+.sr-name-label {
+  font-weight: 600;
+  color: #1b1f2a;
+}
+
+.sr-name-place {
+  display: block;
+  color: #7a828f;
+  font-size: 12px;
+}
+
+/* What a comment is about, with its CSS selector one click away. */
+.sr-target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 8px;
+  margin-bottom: 10px;
+}
+
+.sr-target .sr-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.sr-popup .sr-target-toggle {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid #e1e5ec;
+  border-radius: 5px;
+  background: #fff;
+  color: #7a828f;
+  font: 600 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.sr-popup .sr-target-toggle:hover,
+.sr-popup .sr-target-toggle[aria-expanded="true"] {
+  border-color: #c9d6f7;
+  background: #eef3ff;
+  color: #2f5bd7;
+}
+
+.sr-target-selector {
+  flex-basis: 100%;
   padding: 6px 8px;
   border-radius: 5px;
   background: #f2f4f8;
   color: #3a4252;
   font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   word-break: break-all;
+}
+
+/* Any display a site gives <code> would beat the hidden attribute. */
+.sr-target-selector[hidden] {
+  display: none;
 }
 
 .sr-popup textarea {
@@ -281,15 +340,23 @@ html.sr-active .sr-popup button {
   gap: 6px;
 }
 
-.sr-row-selector {
+.sr-row-name {
   flex: 1;
-  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: #2f5bd7;
-  word-break: break-all;
+  min-width: 0;
+  font-size: 12px;
 }
 
-.sr-row-missing .sr-row-selector {
+.sr-row-name .sr-name-place {
+  font-size: 11px;
+}
+
+.sr-row-missing .sr-row-name,
+.sr-row-missing .sr-name-kind,
+.sr-row-missing .sr-name-label {
   color: #b4261f;
+}
+
+.sr-row-missing .sr-row-name {
   text-decoration: line-through;
 }
 
@@ -365,7 +432,7 @@ html.sr-active .sr-popup button {
 
 .sr-popup-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -384,8 +451,9 @@ html.sr-active .sr-popup button {
   font-weight: 600;
 }
 
-.sr-popup-head .sr-popup-selector {
+.sr-popup-head .sr-target {
   flex: 1;
+  min-width: 0;
   margin-bottom: 0;
 }
 
@@ -496,7 +564,8 @@ html.sr-active .sr-popup button {
   background: #aeb5c0;
 }
 
-.sr-row[data-status="resolved"] .sr-row-selector {
+.sr-row[data-status="resolved"] .sr-name-kind,
+.sr-row[data-status="resolved"] .sr-name-label {
   color: #8891a0;
 }
 

@@ -60,7 +60,13 @@ The AI step is optional and stays hidden until you
 ## Using it
 
 Click the pill to arm the tool. The cursor becomes a crosshair, and hovering
-outlines whatever is underneath, with its CSS selector on a label.
+outlines whatever is underneath, with a label saying what it is in plain
+words: *Button “View details” in Revenue*, *Table cell “Pro” in Recent
+signups, Plan column*. The name is read off the page itself (labels, alt text,
+visible text, the heading of the section around it), so it means something to
+a designer or a client, not only to a developer. The CSS selector is still
+there: press **</>** in the comment box to show it, and it stays shown for the
+rest of the tab.
 
 Click an element and the page doesn't react — links don't navigate, buttons
 don't submit, menus don't open, inputs don't take focus. You get a comment box
@@ -363,6 +369,7 @@ have written.
   "createdAt": "2026-09-22T14:31:07.482Z",
   "status": "open",
   "context": {
+    "name": { "kind": "Text", "label": "$12,480", "place": "Revenue" },
     "tagName": "p",
     "text": "$12,480",
     "nearbyText": "Revenue $12,480 View details",
@@ -379,7 +386,8 @@ proxy, and decides which page pins the comment. Lists saved per page by
 earlier versions are merged into their site's list the first time it's opened. `context` is the snapshot
 that makes a comment readable later: its text comes from `innerText` rather than
 `textContent`, so it reflects what was actually visible, and `nearbyText` climbs
-the ancestors until it finds one saying more than the element itself. Full
+the ancestors until it finds one saying more than the element itself. `name` is
+what the panel and comment box show: *Text “$12,480” in Revenue*. Full
 reasoning in [docs/captured-context.md](docs/captured-context.md).
 
 ## The AI step

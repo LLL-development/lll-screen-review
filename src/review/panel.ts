@@ -18,6 +18,7 @@ import {
   type ReviewComment,
 } from './store'
 import { previewHighlight, endPreview } from './highlight'
+import { buildName, formatName } from './describe'
 import { attachUi, findElement, markAsUi, mountUi, onRemoveUi } from './ui'
 
 /** How often each row re-checks whether its element is still on the page. */
@@ -168,11 +169,11 @@ function buildRow(comment: ReviewComment): HTMLElement {
   // The same number its pin shows on the page.
   number.textContent = String(comment.id)
 
-  const selector = document.createElement('code')
-  selector.className = 'sr-row-selector'
-  // textContent everywhere in this file: selectors and comment text are data,
-  // never markup to be executed.
-  selector.textContent = comment.selector
+  // The element as a person would call it. The selector is there for
+  // developers on hover, and in Copy JSON.
+  const name = buildName(comment.context.name)
+  name.classList.add('sr-row-name')
+  name.title = `${formatName(comment.context.name)}\n${comment.selector}`
 
   const remove = document.createElement('button')
   remove.type = 'button'
@@ -188,10 +189,12 @@ function buildRow(comment: ReviewComment): HTMLElement {
 
   const head = document.createElement('div')
   head.className = 'sr-row-head'
-  head.append(number, selector, remove)
+  head.append(number, name, remove)
 
   const text = document.createElement('p')
   text.className = 'sr-row-text'
+  // textContent everywhere in this file: page text and comments are data,
+  // never markup to be executed.
   text.textContent = comment.comment
 
   // Both are kept: the clarified wording is what someone acts on, the original
@@ -263,7 +266,7 @@ function buildRow(comment: ReviewComment): HTMLElement {
   row.addEventListener('mouseenter', () => {
     const target = findTarget()
     syncMissing(target)
-    if (target) previewHighlight(target, comment.selector)
+    if (target) previewHighlight(target, formatName(comment.context.name))
   })
   row.addEventListener('mouseleave', () => endPreview())
   row.addEventListener('click', () => {

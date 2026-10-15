@@ -18,6 +18,7 @@ import {
   type ReviewComment,
 } from './store'
 import { captureContext, type ElementContext } from './context'
+import { buildName, describeElement, formatName, type ElementName } from './describe'
 import { createClarifySection } from './clarify-ui'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
@@ -63,9 +64,6 @@ const PRESS_EVENTS = [
   'auxclick',
 ] as const
 
-/** Hovering asks finder for a quick answer; see selectorFor. */
-const HOVER_SELECTOR_MS = 50
-
 let reviewMode = false
 
 /** The open comment box or comment reader, or null when neither is open. */
@@ -102,6 +100,13 @@ const OPEN_KEY = 'screen-review:open-comment'
 
 /** How long a page just opened gets to show a comment's element. */
 const ARRIVAL_WAIT_MS = 5000
+
+/**
+ * Whether comment boxes show the CSS selector under the element's name.
+ * Remembered per tab, so a developer who wants it opens it once.
+ */
+const SELECTOR_KEY = 'screen-review:show-selector'
+let showSelector = readSession(SELECTOR_KEY) === 'on'
 
 const toggle = buildToggle()
 
@@ -234,9 +239,9 @@ function onMouseMove(event: MouseEvent): void {
   // it at the element belonging to whichever row you are hovering.
   if (isOurUi(target)) return
 
-  // finder does real work, so only recompute when the element actually changes.
+  // Naming reads the page's text and layout, so only when the element changes.
   if (target !== highlightedElement()) {
-    showHighlight(target, selectorFor(target, HOVER_SELECTOR_MS))
+    showHighlight(target, formatName(describeElement(target)))
   }
 }
 
@@ -328,12 +333,11 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   // — a single-page app can move on to another page under an open box.
   const context = captureContext(el)
   const page = pageUrl
-  showHighlight(el, selector)
+  showHighlight(el, formatName(context.name))
 
   const box = markAsUi(document.createElement('div'))
   box.className = 'sr-popup'
   box.innerHTML = `
-    <div class="sr-popup-selector"></div>
     <textarea placeholder="What should change about this?"></textarea>
     <div class="sr-popup-actions">
       <button type="button" class="sr-cancel">Cancel</button>
@@ -341,11 +345,7 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
     </div>
     <div class="sr-popup-hint">Ctrl/Cmd + Enter to save &middot; Esc to cancel</div>
   `
-
-  // textContent, not innerHTML: a selector can contain characters that came
-  // from the page's own markup, and we never want to run those as HTML.
-  const selectorEl = box.querySelector('.sr-popup-selector') as HTMLElement
-  selectorEl.textContent = selector
+  box.prepend(buildTarget(context.name, selector))
 
   const textarea = box.querySelector('textarea') as HTMLTextAreaElement
   const saveButton = box.querySelector('.sr-save') as HTMLButtonElement
@@ -453,14 +453,13 @@ function openCommentReader(comment: ReviewComment): void {
   closePopup()
 
   const el = findElement(comment.selector)
-  if (el) showHighlight(el, comment.selector)
+  if (el) showHighlight(el, formatName(comment.context.name))
 
   const box = markAsUi(document.createElement('div'))
   box.className = 'sr-popup sr-popup-read'
   box.innerHTML = `
     <div class="sr-popup-head">
       <span class="sr-popup-number"></span>
-      <div class="sr-popup-selector"></div>
     </div>
     <p class="sr-popup-text"></p>
     <div class="sr-popup-actions">
@@ -471,9 +470,7 @@ function openCommentReader(comment: ReviewComment): void {
   // Everything below is page data or user text, so it goes in as text.
   const number = box.querySelector('.sr-popup-number') as HTMLElement
   number.textContent = String(comment.id)
-
-  const selectorEl = box.querySelector('.sr-popup-selector') as HTMLElement
-  selectorEl.textContent = comment.selector
+  number.after(buildTarget(comment.context.name, comment.selector))
 
   const text = box.querySelector('.sr-popup-text') as HTMLElement
   text.textContent = comment.comment
@@ -580,6 +577,7 @@ function capture(
     '%c[Screen Review] comment captured',
     'color:#2f5bd7;font-weight:600',
   )
+  console.log('name    :', formatName(entry.context.name))
   console.log('selector:', entry.selector)
   console.log('comment :', entry.comment)
   console.log('element :', `<${entry.context.tagName}> ${entry.context.text}`)
@@ -593,18 +591,54 @@ function capture(
 // --- helpers ----------------------------------------------------------------
 
 /**
+ * What a comment is about, as a person would say it, with the CSS selector
+ * one click away for anyone who wants it.
+ */
+function buildTarget(name: ElementName, selector: string): HTMLElement {
+  const target = document.createElement('div')
+  target.className = 'sr-target'
+  target.append(buildName(name))
+
+  const toggle = document.createElement('button')
+  toggle.type = 'button'
+  toggle.className = 'sr-target-toggle'
+  toggle.textContent = '</>'
+
+  // textContent, not innerHTML: a selector can contain characters that came
+  // from the page's own markup, and we never want to run those as HTML.
+  const code = document.createElement('code')
+  code.className = 'sr-target-selector'
+  code.textContent = selector
+
+  const show = (open: boolean) => {
+    code.hidden = !open
+    toggle.setAttribute('aria-expanded', String(open))
+    toggle.title = open ? 'Hide the CSS selector' : 'Show the CSS selector'
+    toggle.setAttribute('aria-label', toggle.title)
+  }
+  show(showSelector)
+
+  toggle.addEventListener('click', () => {
+    showSelector = !showSelector
+    writeSession(SELECTOR_KEY, showSelector ? 'on' : 'off')
+    show(showSelector)
+  })
+
+  target.append(toggle, code)
+  return target
+}
+
+/**
  * A unique CSS selector for the element, e.g. `#page-title` or
  * `.card:nth-of-type(2) > .stat`.
  *
- * Hovering asks for a quick answer: it runs for every new element under the
- * mouse, and on a big page finder can spend its full default second on one,
- * freezing the cursor. When it runs out of time it settles for a longer
- * selector, which is fine for a label. The click asks again, with time to
- * find a better one.
+ * On a big page finder can spend up to a second looking for a short one.
+ * That's once per click, never while hovering: the label shows the
+ * element's name instead.
  */
-function selectorFor(el: Element, timeoutMs = 1000): string {
+function selectorFor(el: Element): string {
   try {
-    return finder(el, { timeoutMs })
+    return finder(el, { timeoutMs: 1000 })
   } catch {
     // finder gives up on odd nodes (svg internals, detached elements, ...).
     return pathTo(el)

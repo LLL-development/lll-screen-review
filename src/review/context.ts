@@ -9,11 +9,16 @@
  * context the AI clarification step needs to ask a useful question.
  */
 
+import { describeElement, type ElementName } from './describe'
+import { truncate, visibleTextOf } from './text'
+
 /** Keeps stored comments small and prompts cheap. */
 const TEXT_LIMIT = 200
 const NEARBY_LIMIT = 300
 
 export type ElementContext = {
+  /** What a person would call it: a "View details" button in Revenue. */
+  name: ElementName
   /** Lowercase tag name, e.g. "button". */
   tagName: string
   /** The element's own visible text, collapsed and trimmed. */
@@ -26,6 +31,7 @@ export type ElementContext = {
 
 export function captureContext(el: Element): ElementContext {
   return {
+    name: describeElement(el),
     tagName: el.tagName.toLowerCase(),
     text: truncate(visibleTextOf(el), TEXT_LIMIT),
     nearbyText: nearbyTextFor(el),
@@ -34,18 +40,6 @@ export function captureContext(el: Element): ElementContext {
       height: window.innerHeight,
     },
   }
-}
-
-/**
- * The text a person would actually see.
- *
- * innerText respects rendering — it skips display:none and reflects line
- * breaks — where textContent would return markup text that is not on screen.
- * Elements without innerText (SVG internals) fall back to textContent.
- */
-function visibleTextOf(el: Element): string {
-  const raw = el instanceof HTMLElement ? el.innerText : (el.textContent ?? '')
-  return collapse(raw)
 }
 
 /**
@@ -66,17 +60,4 @@ function nearbyTextFor(el: Element): string {
   }
 
   return ''
-}
-
-/** Runs of whitespace and newlines become single spaces. */
-function collapse(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
-}
-
-function truncate(text: string, limit: number): string {
-  if (text.length <= limit) return text
-  // Emoji and some CJK characters take two string positions; cutting between
-  // them leaves half a character that shows up as "�".
-  const cut = /[\uD800-\uDBFF]$/.test(text.slice(0, limit - 1)) ? limit - 2 : limit - 1
-  return `${text.slice(0, cut).trimEnd()}…`
 }
