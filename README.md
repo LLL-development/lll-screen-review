@@ -16,8 +16,7 @@ someone can act on.
                           ▼
          you answer, edit the draft, save
 
-  stored:  .card:nth-child(1) > .stat
-           a <p> reading "$12,480", inside a card headed "Revenue"
+  stored:  Text “$12,480” in Revenue     (.card:nth-child(1) > .stat)
            "Increase the font weight of the revenue figure to bold."
 ```
 
@@ -316,6 +315,8 @@ about each save and redraw.
 | [`pins.ts`](src/review/pins.ts) | The numbered markers |
 | [`highlight.ts`](src/review/highlight.ts) | The blue outline |
 | [`context.ts`](src/review/context.ts) | What was on screen |
+| [`describe.ts`](src/review/describe.ts) | The element's name in plain words |
+| [`text.ts`](src/review/text.ts) | Reading visible text off the page |
 | [`clarify.ts`](src/review/clarify.ts) · [`clarify-ui.ts`](src/review/clarify-ui.ts) | The AI step |
 | [`ui.ts`](src/review/ui.ts) | Putting the tool on the page, finding elements |
 
@@ -383,12 +384,13 @@ have written.
 the whole site and never reused, even after the newest comment is deleted.
 `url` is the real page's address, including for pages loaded through the
 proxy, and decides which page pins the comment. Lists saved per page by
-earlier versions are merged into their site's list the first time it's opened. `context` is the snapshot
-that makes a comment readable later: its text comes from `innerText` rather than
-`textContent`, so it reflects what was actually visible, and `nearbyText` climbs
-the ancestors until it finds one saying more than the element itself. `name` is
-what the panel and comment box show: *Text “$12,480” in Revenue*. Full
-reasoning in [docs/captured-context.md](docs/captured-context.md).
+earlier versions are merged into their site's list the first time it's
+opened. `context` is the snapshot that makes a comment readable later: its
+text comes from `innerText` rather than `textContent`, so it reflects what was
+actually visible, and `nearbyText` climbs the ancestors until it finds one
+saying more than the element itself. `name` is what the panel and comment box
+show: *Text “$12,480” in Revenue*. Full reasoning in
+[docs/captured-context.md](docs/captured-context.md).
 
 ## The AI step
 
