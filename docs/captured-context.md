@@ -173,6 +173,29 @@ Exact selectors and nearby text vary with the DOM — `@medv/finder` picks the
 shortest unique selector it can, and how far the climb goes depends on how much
 surrounding text there is.
 
+## Comments on several elements
+
+A comment can cover several elements at once, every card in a grid, say. The
+snapshot above is taken of the first, the one clicked. Each of the others
+keeps its selector and name, under `others`:
+
+```json
+"others": [
+  {
+    "selector": "article:nth-of-type(2)",
+    "name": { "kind": "Section", "label": "Active users", "place": "" }
+  },
+  {
+    "selector": "article:nth-of-type(3)",
+    "name": { "kind": "Section", "label": "Churn", "place": "" }
+  }
+]
+```
+
+That is enough to pin and list them. The AI step gets the first element's
+context, as for any comment, plus the names of the rest, so it knows the
+request is about all of them.
+
 ## Older comments
 
 Comments saved before context existed load with an empty context rather than

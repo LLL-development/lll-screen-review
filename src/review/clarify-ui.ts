@@ -30,6 +30,8 @@ export function createClarifySection(input: {
   selector: string
   context: ElementContext
   getComment: () => string
+  /** The names of the other elements the comment is about, as it stands. */
+  getOthers: () => string[]
 }): ClarifySection {
   const section = document.createElement('div')
   section.className = 'sr-clarify'
@@ -55,11 +57,15 @@ export function createClarifySection(input: {
       : `${status.model} is not responding. Start it and reload the page.`
   })
 
-  const inputFor = (): ClarifyInput => ({
-    comment: input.getComment(),
-    selector: input.selector,
-    context: input.context,
-  })
+  const inputFor = (): ClarifyInput => {
+    const others = input.getOthers()
+    return {
+      comment: input.getComment(),
+      selector: input.selector,
+      context: input.context,
+      ...(others.length > 0 ? { others } : {}),
+    }
+  }
 
   button.addEventListener('click', () => void ask())
 

@@ -160,19 +160,36 @@ question into one short, concrete requirement.
 Reply with JSON and nothing else: {"requirement":"<one or two sentences>"}
 
 Rules:
-- Say what should change about this element, in plain language.
+- Say what should change about this element, or these elements when the
+  comment covers several, in plain language.
 - Use only what the reviewer actually said. Add no new requirements.
 - No preamble, no restating the question.
 - A person will review and edit your wording, so keep it short and plain.`
 
+/** How many of a comment's other elements the model is told about by name. */
+const OTHERS_LIMIT = 10
+
 function elementBlock(body: Record<string, unknown>): string {
   const context = (body.context ?? {}) as Record<string, unknown>
-  return [
+  const lines = [
     `Selector: ${String(body.selector ?? '')}`,
     `Tag: <${String(context.tagName ?? '')}>`,
     `Element text: ${String(context.text ?? '')}`,
     `Nearby text: ${String(context.nearbyText ?? '')}`,
-  ].join('\n')
+  ]
+
+  // A comment on every card in a grid is one request about all of them.
+  const others = Array.isArray(body.others)
+    ? body.others.filter((o): o is string => typeof o === 'string')
+    : []
+  if (others.length > 0) {
+    const named = others.slice(0, OTHERS_LIMIT).join('; ')
+    const rest = others.length > OTHERS_LIMIT ? '; …' : ''
+    lines.push(
+      `The comment also covers ${others.length} more element(s) like this one: ${named}${rest}`,
+    )
+  }
+  return lines.join('\n')
 }
 
 function askMessages(body: Record<string, unknown>) {

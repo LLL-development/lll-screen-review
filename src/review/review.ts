@@ -5,9 +5,12 @@ import {
   showHighlight,
   hideHighlight,
   highlightedElement,
+  showCandidate,
+  foundTargets,
 } from './highlight'
 import {
   addComment,
+  commentTargets,
   getComments,
   isOnThisPage,
   loadComments,
@@ -15,13 +18,15 @@ import {
   pageKey,
   setPage,
   unloadComments,
+  type CommentTarget,
   type ReviewComment,
 } from './store'
 import { captureContext, type ElementContext } from './context'
-import { buildName, describeElement, formatName, type ElementName } from './describe'
+import { buildName, describeElement, formatName } from './describe'
 import { createClarifySection } from './clarify-ui'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
+import { findSimilar } from './similar'
 import './page.css'
 
 /**
@@ -75,6 +80,15 @@ let popup: {
   hasDraft: () => boolean
   /** Stops keeping the box on screen. */
   stopPlacing: () => void
+  /**
+   * For a comment being written, which can be about several elements:
+   * Shift+click adds one to it, or takes it off again. hint says what a
+   * Shift+click on el would do, or null when it would do nothing.
+   */
+  group?: {
+    toggle: (el: Element) => void
+    hint: (el: Element) => string | null
+  }
 } | null = null
 
 /** The page under review, with any #fragment; see ReviewToolOptions.pageUrl. */
@@ -228,12 +242,18 @@ function onCommentsChanged(): void {
 // --- hovering ---------------------------------------------------------------
 
 function onMouseMove(event: MouseEvent): void {
-  // While a comment box is open the highlight stays put on the clicked
-  // element, so the outline keeps showing what the comment is about.
-  if (!reviewMode || popup) return
+  if (!reviewMode) return
 
   const target = event.target
   if (!(target instanceof Element)) return
+
+  // While a comment box is open the highlight stays put on its elements, so
+  // the outline keeps showing what the comment is about. The element under
+  // the cursor gets a dashed box beside them, saying Shift+click adds it.
+  if (popup) {
+    pointAt(isOurUi(target) ? null : target)
+    return
+  }
 
   // Over our own toolbar or panel: leave the highlight alone. The panel points
   // it at the element belonging to whichever row you are hovering.
@@ -241,8 +261,14 @@ function onMouseMove(event: MouseEvent): void {
 
   // Naming reads the page's text and layout, so only when the element changes.
   if (target !== highlightedElement()) {
-    showHighlight(target, formatName(describeElement(target)))
+    showHighlight([{ el: target, text: formatName(describeElement(target)) }])
   }
+}
+
+/** Shows what a Shift+click on el would do to the comment being written. */
+function pointAt(el: Element | null): void {
+  const hint = el && popup?.group?.hint(el)
+  showCandidate(el && hint ? { el, text: hint } : null)
 }
 
 // --- clicking ---------------------------------------------------------------
@@ -293,6 +319,13 @@ function onClick(event: MouseEvent): void {
   if (!target) return
   swallow(event)
 
+  // Shift+click adds to the comment being written, or takes back off it.
+  if (event.shiftKey && popup?.group) {
+    popup.group.toggle(target)
+    pointAt(target)
+    return
+  }
+
   // A stray click shouldn't cost a half-written comment.
   if (popup?.hasDraft()) {
     nudgePopup()
@@ -333,24 +366,79 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   // — a single-page app can move on to another page under an open box.
   const context = captureContext(el)
   const page = pageUrl
-  showHighlight(el, formatName(context.name))
+
+  /**
+   * What the comment is about. The element clicked stays first: the comment
+   * hangs on it, and its context is the one saved. Shift+click adds more.
+   */
+  const selected: (CommentTarget & { el: Element })[] = [
+    { el, selector, name: context.name },
+  ]
+  // Looked for now, while the page is as the reviewer saw it when clicking.
+  const similar = findSimilar(el)
 
   const box = document.createElement('div')
   box.className = 'sr-popup'
   box.innerHTML = `
-    <textarea placeholder="What should change about this?"></textarea>
+    <div class="sr-popup-targets"></div>
+    <textarea></textarea>
     <div class="sr-popup-actions">
       <button type="button" class="sr-cancel">Cancel</button>
       <button type="button" class="sr-save">Save comment</button>
     </div>
-    <div class="sr-popup-hint">Ctrl/Cmd + Enter to save &middot; Esc to cancel</div>
+    <div class="sr-popup-hint">Shift+click to add more &middot; Ctrl/Cmd + Enter to save &middot; Esc to cancel</div>
   `
-  box.prepend(buildTarget(context.name, selector))
 
+  const targets = box.querySelector('.sr-popup-targets') as HTMLElement
   const textarea = box.querySelector('textarea') as HTMLTextAreaElement
   const saveButton = box.querySelector('.sr-save') as HTMLButtonElement
   const cancelButton = box.querySelector('.sr-cancel') as HTMLButtonElement
   const actions = box.querySelector('.sr-popup-actions') as HTMLElement
+
+  const add = (other: Element) => {
+    selected.push({ el: other, selector: selectorFor(other), name: describeElement(other) })
+    // The rest in page order, however they were picked, so the list reads
+    // top to bottom.
+    const [first, ...rest] = selected
+    rest.sort((a, b) =>
+      a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    )
+    selected.splice(0, selected.length, first, ...rest)
+  }
+  const remove = (index: number) => {
+    selected.splice(index, 1)
+    showSelected()
+    textarea.focus()
+  }
+
+  /** Lists the elements in the box, and outlines them on the page. */
+  const showSelected = () => {
+    targets.replaceChildren(buildTarget(selected, remove))
+
+    // The rest of the cards in the grid, say: one click takes them all in.
+    const unpicked = similar.filter(
+      (other) => other.isConnected && !selected.some((s) => s.el === other),
+    )
+    if (unpicked.length > 0) {
+      const takeAll = document.createElement('button')
+      takeAll.type = 'button'
+      takeAll.className = 'sr-similar'
+      takeAll.textContent = `+ Add ${unpicked.length} more like ${selected.length > 1 ? 'these' : 'this'}`
+      takeAll.addEventListener('click', () => {
+        for (const other of unpicked) add(other)
+        showSelected()
+        textarea.focus()
+      })
+      targets.append(takeAll)
+    }
+
+    textarea.placeholder =
+      selected.length > 1
+        ? `What should change about these ${selected.length}?`
+        : 'What should change about this?'
+    showHighlight(selected.map((s) => ({ el: s.el, text: formatName(s.name) })))
+  }
+  showSelected()
 
   // The clarify step hides itself when no model is configured, so the popup
   // looks and behaves exactly as before when the AI is not set up.
@@ -358,6 +446,7 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
     selector,
     context,
     getComment: () => textarea.value.trim(),
+    getOthers: () => selected.slice(1).map((s) => formatName(s.name)),
   })
   actions.insertBefore(clarify.button, saveButton)
   box.insertBefore(clarify.element, actions)
@@ -368,7 +457,8 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
       textarea.focus()
       return
     }
-    capture(selector, text, context, clarify.getClarified(), page)
+    const others = selected.slice(1).map(({ selector, name }) => ({ selector, name }))
+    capture(selector, text, context, clarify.getClarified(), page, others)
     closePopup()
   }
 
@@ -383,8 +473,25 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   popup = {
     el: box,
     commentId: null,
-    hasDraft: () => Boolean(textarea.value.trim() || clarify.getClarified()),
+    // Picking out several elements is work worth keeping too.
+    hasDraft: () =>
+      Boolean(textarea.value.trim() || clarify.getClarified() || selected.length > 1),
     stopPlacing: keepNear(box, clickX, clickY),
+    group: {
+      toggle: (other) => {
+        const index = selected.findIndex((s) => s.el === other)
+        // The first is what the comment hangs on; it stays.
+        if (index === 0) return
+        if (index > 0) selected.splice(index, 1)
+        else add(other)
+        showSelected()
+      },
+      hint: (other) => {
+        const index = selected.findIndex((s) => s.el === other)
+        if (index === 0) return null
+        return index > 0 ? 'Shift+click to take this off' : 'Shift+click to add this'
+      },
+    },
   }
   textarea.focus()
 }
@@ -420,7 +527,7 @@ function nudgePopup(): void {
   const { el } = popup
 
   const hint = el.querySelector('.sr-popup-hint')
-  if (hint) hint.textContent = 'Save or cancel this comment first.'
+  if (hint) hint.textContent = 'Save or cancel this comment first, or Shift+click to add to it.'
 
   // Removing and re-adding the class restarts the animation; reading
   // offsetWidth in between makes the browser notice it was ever removed.
@@ -452,8 +559,8 @@ function openCommentReader(comment: ReviewComment): void {
   }
   closePopup()
 
-  const el = findElement(comment.selector)
-  if (el) showHighlight(el, formatName(comment.context.name))
+  const found = foundTargets(comment)
+  showHighlight(found)
 
   const box = document.createElement('div')
   box.className = 'sr-popup sr-popup-read'
@@ -470,7 +577,7 @@ function openCommentReader(comment: ReviewComment): void {
   // Everything below is page data or user text, so it goes in as text.
   const number = box.querySelector('.sr-popup-number') as HTMLElement
   number.textContent = String(comment.id)
-  number.after(buildTarget(comment.context.name, comment.selector))
+  number.after(buildTarget(commentTargets(comment)))
 
   const text = box.querySelector('.sr-popup-text') as HTMLElement
   text.textContent = comment.comment
@@ -491,7 +598,7 @@ function openCommentReader(comment: ReviewComment): void {
 
   // Anchor the reader to the element the comment is about, falling back to the
   // middle of the screen when that element is gone.
-  const rect = el?.getBoundingClientRect()
+  const rect = found[0]?.el.getBoundingClientRect()
   popup = {
     el: box,
     commentId: comment.id,
@@ -562,12 +669,15 @@ function capture(
   context: ElementContext,
   clarified: string,
   url: string,
+  others: CommentTarget[],
 ): void {
   const entry = addComment({
     selector,
     comment,
     url,
     context,
+    // Only present for a comment on more than one element.
+    ...(others.length > 0 ? { others } : {}),
     // Only present when the reviewer went through the clarify step and kept
     // the wording.
     ...(clarified ? { clarified } : {}),
@@ -579,6 +689,9 @@ function capture(
   )
   console.log('name    :', formatName(entry.context.name))
   console.log('selector:', entry.selector)
+  if (entry.others) {
+    console.log('also on :', entry.others.map((o) => formatName(o.name)).join(' · '))
+  }
   console.log('comment :', entry.comment)
   console.log('element :', `<${entry.context.tagName}> ${entry.context.text}`)
   console.log('nearby  :', entry.context.nearbyText)
@@ -592,12 +705,15 @@ function capture(
 
 /**
  * What a comment is about, as a person would say it, with the CSS selector
- * one click away for anyone who wants it.
+ * one click away for anyone who wants it. Several elements are counted and
+ * listed; give onRemove and each but the first can be taken off.
  */
-function buildTarget(name: ElementName, selector: string): HTMLElement {
+function buildTarget(
+  targets: readonly CommentTarget[],
+  onRemove?: (index: number) => void,
+): HTMLElement {
   const target = document.createElement('div')
   target.className = 'sr-target'
-  target.append(buildName(name))
 
   const toggle = document.createElement('button')
   toggle.type = 'button'
@@ -608,7 +724,7 @@ function buildTarget(name: ElementName, selector: string): HTMLElement {
   // from the page's own markup, and we never want to run those as HTML.
   const code = document.createElement('code')
   code.className = 'sr-target-selector'
-  code.textContent = selector
+  code.textContent = targets.map((t) => t.selector).join('\n')
 
   const show = (open: boolean) => {
     code.hidden = !open
@@ -624,7 +740,35 @@ function buildTarget(name: ElementName, selector: string): HTMLElement {
     show(showSelector)
   })
 
-  target.append(toggle, code)
+  if (targets.length === 1) {
+    target.append(buildName(targets[0].name), toggle, code)
+    return target
+  }
+
+  const count = document.createElement('span')
+  count.className = 'sr-target-count'
+  count.textContent = `${targets.length} elements`
+
+  const list = document.createElement('ul')
+  list.className = 'sr-target-list'
+  targets.forEach(({ name }, index) => {
+    const item = document.createElement('li')
+    item.append(buildName(name))
+
+    if (onRemove && index > 0) {
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'sr-target-remove'
+      remove.textContent = '×'
+      remove.title = 'Leave this one out'
+      remove.setAttribute('aria-label', `Leave out ${formatName(name)}`)
+      remove.addEventListener('click', () => onRemove(index))
+      item.append(remove)
+    }
+    list.append(item)
+  })
+
+  target.append(count, toggle, list, code)
   return target
 }
 

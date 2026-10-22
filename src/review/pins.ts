@@ -4,13 +4,20 @@
  * A pin is anchored to an element, not to a fixed spot on the screen: it sits
  * on that element's top-left corner and is repositioned whenever the page
  * moves, using the same approach as the highlight box (read the element's
- * bounding rectangle, write it onto a fixed-position node).
+ * bounding rectangle, write it onto a fixed-position node). A comment on
+ * several elements has a pin on each, all with its number.
  *
  * The pins redraw themselves from the store whenever it changes, so adding or
  * deleting a comment updates them without anyone having to say so.
  */
 
-import { getComments, isOnThisPage, onChange, type ReviewComment } from './store'
+import {
+  commentTargets,
+  getComments,
+  isOnThisPage,
+  onChange,
+  type ReviewComment,
+} from './store'
 import { findElement, mountUi, onRemoveUi } from './ui'
 
 /** How often the selectors are looked up again; see track. */
@@ -23,11 +30,13 @@ layer.className = 'sr-pin-layer'
 let onActivate: ((comment: ReviewComment) => void) | null = null
 
 /**
- * Every comment, paired with the element its selector found (if any) and its
- * pin (if it has one), so the page moving doesn't mean rebuilding the DOM.
+ * Every element of every comment, paired with what its selector found (if
+ * anything) and its pin (if it has one), so the page moving doesn't mean
+ * rebuilding the DOM.
  */
 const placed: {
   comment: ReviewComment
+  selector: string
   el: Element | null
   node: HTMLElement | null
 }[] = []
@@ -57,12 +66,14 @@ function render(): void {
     // that's a different element.
     if (!isOnThisPage(comment)) continue
 
-    const el = findElement(comment.selector)
-    // No element to pin to: the comment still exists and still shows up in the
-    // panel, there is just nowhere on the page to put a marker — for now.
-    const node = el ? buildPin(comment) : null
-    if (node) layer.appendChild(node)
-    placed.push({ comment, el, node })
+    for (const { selector } of commentTargets(comment)) {
+      const el = findElement(selector)
+      // No element to pin to: the comment still exists and still shows up in
+      // the panel, there is just nowhere on the page to put a marker — for now.
+      const node = el ? buildPin(comment) : null
+      if (node) layer.appendChild(node)
+      placed.push({ comment, selector, el, node })
+    }
   }
 
   repositionPins()
@@ -83,7 +94,7 @@ function track(now: number): void {
 
   if (now - lastCheck > RECHECK_MS) {
     lastCheck = now
-    if (placed.some((p) => findElement(p.comment.selector) !== p.el)) {
+    if (placed.some((p) => findElement(p.selector) !== p.el)) {
       render()
       return
     }

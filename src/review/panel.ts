@@ -9,6 +9,7 @@
  */
 
 import {
+  commentTargets,
   getComments,
   isOnThisPage,
   onChange,
@@ -17,9 +18,9 @@ import {
   setStatus,
   type ReviewComment,
 } from './store'
-import { previewHighlight, endPreview } from './highlight'
+import { previewHighlight, endPreview, foundTargets } from './highlight'
 import { buildName, formatName } from './describe'
-import { findElement, mountUi, onRemoveUi } from './ui'
+import { mountUi, onRemoveUi } from './ui'
 
 /** How often each row re-checks whether its element is still on the page. */
 const RECHECK_MS = 1000
@@ -171,9 +172,20 @@ function buildRow(comment: ReviewComment): HTMLElement {
 
   // The element as a person would call it. The selector is there for
   // developers on hover, and in Copy JSON.
+  const targets = commentTargets(comment)
   const name = buildName(comment.context.name)
   name.classList.add('sr-row-name')
-  name.title = `${formatName(comment.context.name)}\n${comment.selector}`
+  name.title = targets.map((t) => `${formatName(t.name)}\n${t.selector}`).join('\n\n')
+
+  // On several elements: the first by name, and how many more.
+  if (targets.length > 1) {
+    const more = document.createElement('span')
+    more.className = 'sr-name-more'
+    more.textContent = `+${targets.length - 1} more`
+    const place = name.querySelector('.sr-name-place')
+    if (place) place.before(' ', more)
+    else name.append(' ', more)
+  }
 
   const remove = document.createElement('button')
   remove.type = 'button'
@@ -249,28 +261,27 @@ function buildRow(comment: ReviewComment): HTMLElement {
 
   foot.append(status, missing, time, resolve)
 
-  const findTarget = () => findElement(comment.selector)
-
   /**
    * The page can change under us — an element may be re-rendered, removed, or
    * appear later — so the missing state is re-checked rather than decided once.
+   * A comment on several elements is only missing once all of them are.
    */
-  const syncMissing = (target: Element | null) => {
-    row.classList.toggle('sr-row-missing', !target)
-    missing.hidden = Boolean(target)
+  const syncMissing = (found: readonly unknown[]) => {
+    row.classList.toggle('sr-row-missing', found.length === 0)
+    missing.hidden = found.length > 0
   }
 
-  syncMissing(findTarget())
-  rowChecks.push(() => syncMissing(findTarget()))
+  syncMissing(foundTargets(comment))
+  rowChecks.push(() => syncMissing(foundTargets(comment)))
 
   row.addEventListener('mouseenter', () => {
-    const target = findTarget()
-    syncMissing(target)
-    if (target) previewHighlight(target, formatName(comment.context.name))
+    const found = foundTargets(comment)
+    syncMissing(found)
+    if (found.length > 0) previewHighlight(found)
   })
   row.addEventListener('mouseleave', () => endPreview())
   row.addEventListener('click', () => {
-    findTarget()?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    foundTargets(comment)[0]?.el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   })
 
   return row

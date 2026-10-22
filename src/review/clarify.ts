@@ -24,6 +24,8 @@ export type ClarifyInput = {
   comment: string
   selector: string
   context: ElementContext
+  /** The names of any other elements the comment is about. */
+  others?: string[]
 }
 
 /** What came back from /api/clarify: its status code and JSON body. */

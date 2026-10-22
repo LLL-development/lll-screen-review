@@ -171,6 +171,8 @@
   background: #f2f4f8;
   color: #3a4252;
   font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* One selector per line, for a comment on several elements. */
+  white-space: pre-wrap;
   word-break: break-all;
 }
 
@@ -770,5 +772,108 @@
 .sr-row[data-status="resolved"] .sr-row-clarified {
   border-left-color: #aeb5c0;
   background: #f4f5f7;
+  color: #7a828f;
+}
+
+/* --- a comment on several elements ----------------------------------------- */
+
+/* The element a Shift+click would add, beside the ones already picked. */
+.sr-highlight-candidate {
+  border-style: dashed;
+  background: transparent;
+}
+
+.sr-highlight-candidate .sr-highlight-label {
+  border: 1px solid #2f5bd7;
+  background: #fff;
+  color: #2f5bd7;
+}
+
+.sr-target-count {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sr-target-list {
+  flex-basis: 100%;
+  max-height: 168px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.sr-target-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 0;
+  border-top: 1px solid #eef0f4;
+}
+
+.sr-target-list .sr-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+
+/* One line each where it fits: the place follows the label. */
+.sr-target-list .sr-name-place {
+  display: inline;
+  margin-left: 4px;
+}
+
+.sr-popup .sr-target-remove {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #99a0ad;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.sr-popup .sr-target-remove:hover {
+  background: #ffe8e6;
+  color: #b4261f;
+}
+
+.sr-popup .sr-similar {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border: 1px dashed #9fb4ec;
+  border-radius: 6px;
+  background: #f4f7ff;
+  color: #2f5bd7;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.sr-popup .sr-similar:hover {
+  border-style: solid;
+  background: #eaf0ff;
+}
+
+/* "+2 more" beside the first element's name in the panel. */
+.sr-name-more {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e8eefc;
+  color: #2f5bd7;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sr-row[data-status="resolved"] .sr-name-more {
+  background: #eceef2;
   color: #7a828f;
 }

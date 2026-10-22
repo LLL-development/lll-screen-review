@@ -23,6 +23,12 @@ import { nameFromSaved, type ElementName } from './describe'
 /** Where a comment is in its life: still needs doing, or dealt with. */
 export type ReviewStatus = 'open' | 'resolved'
 
+/** One element a comment is about: how to find it, and what to call it. */
+export type CommentTarget = {
+  selector: string
+  name: ElementName
+}
+
 /** One captured piece of feedback. */
 export type ReviewComment = {
   id: number
@@ -35,10 +41,24 @@ export type ReviewComment = {
   /** What was on screen at the element when the comment was made. */
   context: ElementContext
   /**
+   * The other elements the comment is about, when there are several: every
+   * card in a grid, say. selector and context are the first one's, the one
+   * clicked. Absent for a comment on one element.
+   */
+  others?: CommentTarget[]
+  /**
    * The agreed wording after the AI asked a follow-up question, as confirmed
    * by the reviewer. Absent when nobody clarified.
    */
   clarified?: string
+}
+
+/** Every element a comment is about, the one clicked first. */
+export function commentTargets(comment: ReviewComment): CommentTarget[] {
+  return [
+    { selector: comment.selector, name: comment.context.name },
+    ...(comment.others ?? []),
+  ]
 }
 
 /** What the caller supplies; the store fills in the rest. */
@@ -318,6 +338,7 @@ function toComment(value: unknown): ReviewComment | null {
   if (typeof raw.selector !== 'string') return null
   if (typeof raw.comment !== 'string') return null
 
+  const others = toTargets(raw.others)
   return {
     id: raw.id,
     selector: raw.selector,
@@ -330,6 +351,7 @@ function toComment(value: unknown): ReviewComment | null {
         : new Date().toISOString(),
     status: raw.status === 'resolved' ? 'resolved' : 'open',
     context: toContext(raw.context),
+    ...(others.length > 0 ? { others } : {}),
     ...(typeof raw.clarified === 'string' && raw.clarified
       ? { clarified: raw.clarified }
       : {}),
@@ -371,6 +393,18 @@ function toContext(value: unknown): ElementContext {
       height: typeof viewport.height === 'number' ? viewport.height : 0,
     },
   }
+}
+
+/** A comment's other elements; entries without a selector are dropped. */
+function toTargets(value: unknown): CommentTarget[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const raw = entry as Record<string, unknown>
+    if (typeof raw.selector !== 'string') return []
+    return [{ selector: raw.selector, name: toName(raw.name) ?? nameFromSaved('', '') }]
+  })
 }
 
 function toName(value: unknown): ElementName | null {

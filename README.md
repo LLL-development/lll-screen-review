@@ -72,12 +72,22 @@ don't submit, menus don't open, inputs don't take focus. You get a comment box
 instead. Clicking somewhere else while you're partway through a comment won't
 throw it away: the box shakes until you save or cancel it.
 
+One comment can cover several elements, for a change that applies to all of
+them: every card in a blog grid, say. With the comment box open, hold `Shift`
+and click the others. Each is outlined and listed in the box, and the element
+under the cursor gets a dashed outline saying what a Shift+click would do. When
+the page has more elements built like the one you clicked, the box offers
+**+ Add 5 more like this** to take them all at once. "Like this" means the same
+tag and classes, directly inside the same kind of parent, which is how a
+template repeats. Every element gets a pin with the comment's number.
+
 | | |
 | --- | --- |
 | `Ctrl`/`Cmd` + `Enter` | Save |
 | `Esc` | Close the box, or leave review mode |
+| `Shift` + click | Add an element to the comment being written, or take it back off |
 | Click a pin | Read that comment back, review mode on or off |
-| Hover a panel row | Outline that comment's element |
+| Hover a panel row | Outline that comment's elements |
 | Click a panel row | Scroll to that element, or go to its page |
 
 Saving drops a numbered pin on the element. Pins stay on their element as the
@@ -316,6 +326,7 @@ about each save and redraw.
 | [`highlight.ts`](src/review/highlight.ts) | The blue outline |
 | [`context.ts`](src/review/context.ts) | What was on screen |
 | [`describe.ts`](src/review/describe.ts) | The element's name in plain words |
+| [`similar.ts`](src/review/similar.ts) | Finding the other elements built like one |
 | [`text.ts`](src/review/text.ts) | Reading visible text off the page |
 | [`clarify.ts`](src/review/clarify.ts) · [`clarify-ui.ts`](src/review/clarify-ui.ts) | The AI step |
 | [`ui.ts`](src/review/ui.ts) | Putting the tool on the page, finding elements |
@@ -393,7 +404,9 @@ opened. `context` is the snapshot that makes a comment readable later: its
 text comes from `innerText` rather than `textContent`, so it reflects what was
 actually visible, and `nearbyText` climbs the ancestors until it finds one
 saying more than the element itself. `name` is what the panel and comment box
-show: *Text “$12,480” in Revenue*. Full reasoning in
+show: *Text “$12,480” in Revenue*. A comment on several elements also has
+`others`, the selector and name of each element after the first; `selector`
+and `context` are the first one's, the element clicked. Full reasoning in
 [docs/captured-context.md](docs/captured-context.md).
 
 ## The AI step
