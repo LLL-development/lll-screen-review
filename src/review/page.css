@@ -1,0 +1,10 @@
+/* The only styles the tool puts on the page itself; everything else is in
+   review.css, inside the tool's shadow root.
+
+   While review mode is on, the whole page gets a crosshair cursor so it is
+   obvious that clicks are being intercepted. The tool keeps its own cursors:
+   review.css resets everything the page passes down to it. */
+html.sr-active,
+html.sr-active * {
+  cursor: crosshair !important;
+}

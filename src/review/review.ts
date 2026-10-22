@@ -1,5 +1,5 @@
 import { finder } from '@medv/finder'
-import { attachUi, findElement, isOurUi, markAsUi, mountUi, removeUi } from './ui'
+import { findElement, isOurUi, mountUi, removeUi } from './ui'
 import {
   mountHighlight,
   showHighlight,
@@ -22,7 +22,7 @@ import { buildName, describeElement, formatName, type ElementName } from './desc
 import { createClarifySection } from './clarify-ui'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
-import './review.css'
+import './page.css'
 
 /**
  * The review layer.
@@ -335,7 +335,7 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   const page = pageUrl
   showHighlight(el, formatName(context.name))
 
-  const box = markAsUi(document.createElement('div'))
+  const box = document.createElement('div')
   box.className = 'sr-popup'
   box.innerHTML = `
     <textarea placeholder="What should change about this?"></textarea>
@@ -379,7 +379,7 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit()
   })
 
-  attachUi(box)
+  mountUi(box)
   popup = {
     el: box,
     commentId: null,
@@ -455,7 +455,7 @@ function openCommentReader(comment: ReviewComment): void {
   const el = findElement(comment.selector)
   if (el) showHighlight(el, formatName(comment.context.name))
 
-  const box = markAsUi(document.createElement('div'))
+  const box = document.createElement('div')
   box.className = 'sr-popup sr-popup-read'
   box.innerHTML = `
     <div class="sr-popup-head">
@@ -487,7 +487,7 @@ function openCommentReader(comment: ReviewComment): void {
   const closeButton = box.querySelector('.sr-cancel') as HTMLButtonElement
   closeButton.addEventListener('click', closePopup)
 
-  attachUi(box)
+  mountUi(box)
 
   // Anchor the reader to the element the comment is about, falling back to the
   // middle of the screen when that element is gone.
@@ -696,7 +696,7 @@ function removeSession(key: string): void {
 }
 
 function buildToggle(): HTMLButtonElement {
-  const button = markAsUi(document.createElement('button'))
+  const button = document.createElement('button')
   button.className = 'sr-toggle'
   button.type = 'button'
   button.dataset.on = 'false'

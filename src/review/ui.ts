@@ -1,25 +1,26 @@
+import styles from './review.css?inline'
+
 /**
- * Shared marker for the tool's own DOM.
+ * Putting the tool on the page, and telling it apart from the page.
  *
- * The review layer lives inside the page it is reviewing, so it needs a way to
- * tell "this is the page" from "this is me". Every element we create gets this
- * attribute, and the mouse handlers skip anything carrying it — otherwise the
- * toolbar would try to review itself.
+ * Everything the tool draws lives in a shadow root on one host element. The
+ * page's stylesheets can't reach inside it and its querySelectorAll can't
+ * find anything in it, so a site's own CSS no longer restyles the tool's
+ * buttons and text boxes. The host carries an attribute, and the mouse
+ * handlers skip anything inside it — otherwise the toolbar would try to
+ * review itself. Events from inside the shadow root reach the page with the
+ * host as their target, so checking for the attribute is enough.
  */
 
 export const UI_ATTR = 'data-screen-review-ui'
-
-export function markAsUi<T extends Element>(el: T): T {
-  el.setAttribute(UI_ATTR, '')
-  return el
-}
 
 export function isOurUi(el: Element): boolean {
   return Boolean(el.closest(`[${UI_ATTR}]`))
 }
 
-/** Pieces that stay on the page for good; see mountUi. */
-const mounted = new Set<Element>()
+/** The element on the page that holds the tool; see ensureRoot. */
+let host: HTMLElement | null = null
+let root: ShadowRoot | null = null
 let watcher: MutationObserver | null = null
 
 /** What each piece needs undone when the tool comes off the page. */
@@ -31,39 +32,28 @@ export function onRemoveUi(cleanup: () => void): void {
 }
 
 /**
- * Takes every piece mounted with mountUi off the page, and stops whatever
- * kept them up to date. Only the browser extension does this, when it is
- * switched off for a tab.
+ * Takes the tool off the page, and stops whatever kept its pieces up to date.
+ * Only the browser extension does this, when it is switched off for a tab.
  */
 export function removeUi(): void {
   watcher?.disconnect()
   watcher = null
-  for (const el of mounted) el.remove()
-  mounted.clear()
+  host?.remove()
+  host = root = null
   for (const cleanup of cleanups.splice(0)) cleanup()
 }
 
 /**
- * Adds one of the tool's pieces to the page, for as long as the page lasts.
- *
- * If the page throws it out anyway, it is put straight back.
+ * Adds one of the tool's pieces to the page. Pieces that come and go, like
+ * the comment box, are removed again by whoever added them.
  */
 export function mountUi(el: Element): void {
-  mounted.add(el)
-  attachUi(el)
-
-  if (!watcher) {
-    watcher = new MutationObserver(() => {
-      for (const node of mounted) {
-        if (!node.isConnected) document.documentElement.appendChild(node)
-      }
-    })
-    watcher.observe(document.documentElement, { childList: true })
-  }
+  ensureRoot().append(el)
 }
 
 /**
- * Adds one of the tool's pieces to the page, for the caller to remove again.
+ * Puts the host on the page the first time a piece needs it, and puts it
+ * straight back if the page throws it out.
  *
  * It goes into <html>, beside <body> rather than inside it. Plenty of sites
  * replace or empty <body> as they go — view transitions, a framework mounting
@@ -71,13 +61,32 @@ export function mountUi(el: Element): void {
  * would also shift everything the tool draws, since it is all positioned
  * against the window.
  */
-export function attachUi(el: Element): void {
+function ensureRoot(): ShadowRoot {
+  if (root) return root
+
+  host = document.createElement('screen-review')
+  host.setAttribute(UI_ATTR, '')
+  // Open, so the tool's own DOM can be inspected and scripted while testing.
+  // Closing it would keep nothing from the page worth keeping: the comments
+  // are in the site's storage anyway.
+  root = host.attachShadow({ mode: 'open' })
+
+  const style = document.createElement('style')
+  style.textContent = styles
+  root.append(style)
+
   // Keys typed into the tool stay in the tool. Sites listen for shortcuts on
   // the document, and an "s" or "/" typed into a comment would set them off.
   for (const type of ['keydown', 'keyup', 'keypress']) {
-    el.addEventListener(type, (event) => event.stopPropagation())
+    root.addEventListener(type, (event) => event.stopPropagation())
   }
-  document.documentElement.appendChild(el)
+
+  document.documentElement.appendChild(host)
+  watcher = new MutationObserver(() => {
+    if (host && !host.isConnected) document.documentElement.appendChild(host)
+  })
+  watcher.observe(document.documentElement, { childList: true })
+  return root
 }
 
 /**
@@ -88,9 +97,8 @@ export function attachUi(el: Element): void {
  * gone, or when the selector is no longer valid CSS — callers decide what to
  * do about it, nothing here should throw.
  *
- * The tool's own elements never count. A selector as plain as "textarea" was
- * unique when it was taken, but once the page's one is gone it would match
- * the comment box's instead.
+ * The tool's host never counts, should a positional selector like
+ * "html > :last-child" land on it once the page's own element is gone.
  */
 export function findElement(selector: string): Element | null {
   try {

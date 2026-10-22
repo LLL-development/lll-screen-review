@@ -19,12 +19,12 @@ import {
 } from './store'
 import { previewHighlight, endPreview } from './highlight'
 import { buildName, formatName } from './describe'
-import { attachUi, findElement, markAsUi, mountUi, onRemoveUi } from './ui'
+import { findElement, mountUi, onRemoveUi } from './ui'
 
 /** How often each row re-checks whether its element is still on the page. */
 const RECHECK_MS = 1000
 
-const panel = markAsUi(document.createElement('aside'))
+const panel = document.createElement('aside')
 panel.className = 'sr-panel'
 panel.hidden = true
 
@@ -303,10 +303,10 @@ async function copyText(text: string): Promise<boolean> {
   } catch {
     // No clipboard API off localhost over plain http, or the browser said
     // no. The old select-and-copy way still works in most of those cases.
-    const area = markAsUi(document.createElement('textarea'))
+    const area = document.createElement('textarea')
     area.value = text
     area.style.cssText = 'position:fixed;top:0;left:0;opacity:0'
-    attachUi(area)
+    mountUi(area)
     area.select()
     try {
       return document.execCommand('copy')

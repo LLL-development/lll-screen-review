@@ -12,11 +12,11 @@
  * box was showing before — the element a comment box is open on, say.
  */
 
-import { markAsUi, mountUi, onRemoveUi } from './ui'
+import { mountUi, onRemoveUi } from './ui'
 
 type Target = { el: Element; text: string }
 
-const box = markAsUi(document.createElement('div'))
+const box = document.createElement('div')
 box.className = 'sr-highlight'
 box.innerHTML = '<span class="sr-highlight-label"></span>'
 

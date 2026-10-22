@@ -11,12 +11,12 @@
  */
 
 import { getComments, isOnThisPage, onChange, type ReviewComment } from './store'
-import { findElement, markAsUi, mountUi, onRemoveUi } from './ui'
+import { findElement, mountUi, onRemoveUi } from './ui'
 
 /** How often the selectors are looked up again; see track. */
 const RECHECK_MS = 500
 
-const layer = markAsUi(document.createElement('div'))
+const layer = document.createElement('div')
 layer.className = 'sr-pin-layer'
 
 /** What to do when a pin is clicked; supplied by review.ts on mount. */

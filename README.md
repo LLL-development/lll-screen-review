@@ -330,14 +330,18 @@ the way up, a button's own handler would fire first: the form submits, the page
 navigates, and the comment box opens on a page that's already leaving. Clicks
 the page's own scripts make are left alone.
 
-**The tool marks its own DOM, and lives beside the page.** Everything it creates
-carries `data-screen-review-ui`, and the mouse handlers skip anything with it.
-Without that, the tool reviews itself: hovering the panel outlines the panel,
-and clicking **Resolve** opens a comment box about the Resolve button. It also
-sits beside `<body>` rather than inside it, so a page that swaps its body out as
-it navigates — plenty do — doesn't take the tool with it. Keys typed into the
-tool stay in the tool, so an "s" in a comment doesn't set off the site's search
-shortcut.
+**The tool lives in a shadow root, beside the page.** Everything it draws is
+inside one `<screen-review>` element's shadow root, so the site's stylesheets
+can't restyle its buttons and text boxes, and the site's scripts can't
+stumble on its elements. That element carries `data-screen-review-ui`, and the
+mouse handlers skip anything inside it. Without that, the tool reviews itself:
+hovering the panel outlines the panel, and clicking **Resolve** opens a comment
+box about the Resolve button. It sits beside `<body>` rather than inside it, so
+a page that swaps its body out as it navigates — plenty do — doesn't take the
+tool with it. Keys typed into the tool stay in the tool, so an "s" in a comment
+doesn't set off the site's search shortcut. The one thing it does to the page's
+own look is the crosshair cursor in review mode, from
+[`page.css`](src/review/page.css).
 
 **The outline is an overlay, not a style on the element.** It's a separate
 fixed-position box sized to the element's rectangle. The obvious alternative —
@@ -492,10 +496,6 @@ not being able to send a review to anyone is the biggest thing missing.
 part of the page, so the `localStorage` it saves to is the site's: the site's
 scripts can read your comments, and clearing that site's data deletes them. A
 real backend fixes both.
-
-**A site's own CSS reaches the tool's UI**, through the extension and the
-proxy alike, so on some sites its buttons or text box look a little off.
-Moving the UI into a shadow DOM would wall it off.
 
 **The proxy is limited, and dev-only.** See
 [What works, and what doesn't](#what-works-and-what-doesnt). A built site has no

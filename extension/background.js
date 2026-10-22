@@ -108,7 +108,7 @@ async function isRunning(tabId) {
   try {
     const [check] = await chrome.scripting.executeScript({
       target: { tabId },
-      // The tool marks everything it puts on the page with this attribute.
+      // The element holding the tool carries this attribute.
       func: () => document.querySelector('[data-screen-review-ui]') !== null,
     })
     return check?.result === true

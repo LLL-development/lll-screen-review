@@ -1,12 +1,26 @@
 /* Styles for the review layer itself (the toolbar, highlight box and comment
-   popup). Kept separate from the page's own styles on purpose: this is the
-   tool, everything in style.css is the page being reviewed. */
+   popup). They go inside the tool's shadow root (see ui.ts), so they reach
+   nothing on the page and the page's styles reach nothing here. The one rule
+   that does style the page, its crosshair cursor, is in page.css. */
 
-/* Sizes below assume border-box, and a page's own `* { box-sizing: ... }`
-   would otherwise decide it — pushing the text box out past the popup's edge
-   on pages that use content-box. */
-[data-screen-review-ui],
-[data-screen-review-ui] * {
+/* Stylesheets can't reach into the shadow root, but inherited properties —
+   the page's font, colour, line height, cursor — still flow into it through
+   the host. This cuts them off. It has to be !important: on the host itself
+   the page's rules would otherwise win, and an !important rule from inside
+   the shadow root beats one from the page.
+
+   The colour scheme is set rather than reset: left at its initial value, a
+   page's <meta name="color-scheme" content="light dark"> still decides it,
+   and gives the comment box a dark text area on a light popup. */
+:host {
+  all: initial !important;
+  color-scheme: light !important;
+}
+
+/* Sizes below assume border-box. */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -160,11 +174,6 @@
   word-break: break-all;
 }
 
-/* Any display a site gives <code> would beat the hidden attribute. */
-.sr-target-selector[hidden] {
-  display: none;
-}
-
 .sr-popup textarea {
   width: 100%;
   min-height: 84px;
@@ -232,23 +241,6 @@
   .sr-popup-nudge {
     animation: none;
   }
-}
-
-/* While review mode is on, the whole page gets a crosshair cursor so it is
-   obvious that clicks are being intercepted. Our own UI keeps a normal one. */
-html.sr-active,
-html.sr-active * {
-  cursor: crosshair !important;
-}
-
-html.sr-active [data-screen-review-ui],
-html.sr-active [data-screen-review-ui] * {
-  cursor: auto !important;
-}
-
-html.sr-active .sr-toggle,
-html.sr-active .sr-popup button {
-  cursor: pointer !important;
 }
 
 /* --- the live comments panel ---------------------------------------------- */

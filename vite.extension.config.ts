@@ -4,8 +4,9 @@ import { defineConfig } from 'vite'
  * Builds the browser extension into dist-extension/, ready for "Load
  * unpacked" in chrome://extensions.
  *
- * The tool is bundled into one plain script, content.js, with its styles in
- * content.css. The extension injects both into a tab as they are, and the
+ * The tool is bundled into one plain script, content.js, its own styles
+ * included. content.css holds the one rule it puts on the page itself, the
+ * crosshair cursor. The extension injects both into a tab as they are, and the
  * browser won't run a script injected that way as a module, so nothing can be
  * left as an import. Everything in extension/ — the manifest and the
  * background script — is copied across unchanged.
