@@ -96,9 +96,13 @@ resolve them. The panel on the right lists every comment, and **Copy JSON**
 hands you the lot. Review mode stays on or off as you left it, through a
 refresh and from one page to the next.
 
-In the browser extension, saving also takes a screenshot: the page as you see
-it, with the comment's elements outlined and the tool's own box, panel and pins
-left out. An element scrolled out of sight is brought back into view first.
+In the browser extension, saving also takes a screenshot of the page, with the
+tool itself left out, and marks it up: everything but the comment's elements
+dimmed, each element outlined in coral and badged with the comment's number,
+and a caption strip underneath with the comment, the element, the page and the
+date. It's drawn in its own colour so it never looks like the live tool, and a
+downloaded picture says what it's about on its own. An element scrolled out of
+sight is brought back into view first.
 Click the comment's pin to see the picture, full size or downloaded; a camera
 on its panel row says it has one. The test page and the proxy can't take
 screenshots, and a comment never waits on one: if it can't be taken, the

@@ -880,14 +880,11 @@
 
 /* --- screenshots ----------------------------------------------------------- */
 
-/* While a screenshot is taken (see screenshots.ts), only the outlines of what
-   the comment is about stay on screen. */
-:host([data-capturing]) .sr-toggle,
-:host([data-capturing]) .sr-panel,
-:host([data-capturing]) .sr-pin-layer,
-:host([data-capturing]) .sr-popup,
-:host([data-capturing]) .sr-highlight-candidate {
-  visibility: hidden;
+/* While a screenshot is taken (see screenshots.ts), the whole tool leaves the
+   screen: the marking is drawn onto the picture afterwards. Beats the reset
+   above, which also says !important but is less specific. */
+:host([data-capturing]) {
+  visibility: hidden !important;
 }
 
 /* In the comment reader: the picture, small, and a way to keep it. */

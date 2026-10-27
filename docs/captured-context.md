@@ -199,10 +199,16 @@ request is about all of them.
 ## The screenshot
 
 In the browser extension, saving a comment also takes a picture of the window:
-the page as the reviewer saw it, with the comment's elements outlined and the
-tool's own box, panel and pins hidden. The text above says *what* the element
+the page as the reviewer saw it, with the whole tool hidden. The marking is
+then drawn onto the picture: the rest of the page dimmed, each element outlined
+and badged with the comment's number, and a caption strip with the comment,
+the element, the page and the date. The text above says *what* the element
 was; the picture shows what it looked like, which is what "this looks off"
 was about.
+
+The element's position is measured at the moment the picture is taken, in CSS
+pixels, and scaled to the picture's own pixels, so the marking lands in the
+right place on high-density screens and zoomed pages too.
 
 The comment stores only an id, `"screenshot": "38083fad1a043bb46bc66cbb"`. The
 picture itself, a JPEG of a few hundred KB, is kept in the browser's IndexedDB,

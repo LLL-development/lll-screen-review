@@ -17,6 +17,7 @@ import {
   onChange,
   pageKey,
   setPage,
+  setScreenshot,
   unloadComments,
   type CommentTarget,
   type ReviewComment,
@@ -27,7 +28,14 @@ import { createClarifySection } from './clarify-ui'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
 import { findSimilar } from './similar'
-import { buildScreenshot, canTakeScreenshots, takeScreenshot } from './screenshots'
+import {
+  buildScreenshot,
+  canTakeScreenshots,
+  deleteScreenshot,
+  keepScreenshot,
+  takeScreenshot,
+  type Screenshot,
+} from './screenshots'
 import './page.css'
 
 /**
@@ -474,12 +482,14 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
       first.scrollIntoView({ block: 'center', behavior: 'instant' })
     }
 
-    // Taken before saving, while the outlines still show what the comment is
+    // Taken before saving, while the page still shows what the comment is
     // about. The comment is saved with or without one.
-    const screenshot = await takeScreenshot()
-    capture(selector, text, context, clarified, page, others, screenshot)
+    const shot = await takeScreenshot(selected.map((s) => s.el))
+    const entry = capture(selector, text, context, clarified, page, others)
     // Esc can close the box while the picture is being taken.
     if (popup?.el === box) closePopup()
+    // Marked up with the number the comment has just been given.
+    if (shot) void attachScreenshot(entry, shot)
   }
 
   saveButton.addEventListener('click', () => void submit())
@@ -695,8 +705,7 @@ function capture(
   clarified: string,
   url: string,
   others: CommentTarget[],
-  screenshot: string | null,
-): void {
+): ReviewComment {
   const entry = addComment({
     selector,
     comment,
@@ -707,8 +716,6 @@ function capture(
     // Only present when the reviewer went through the clarify step and kept
     // the wording.
     ...(clarified ? { clarified } : {}),
-    // Only present when a picture was taken; see screenshots.ts.
-    ...(screenshot ? { screenshot } : {}),
   })
 
   console.group(
@@ -724,10 +731,33 @@ function capture(
   console.log('element :', `<${entry.context.tagName}> ${entry.context.text}`)
   console.log('nearby  :', entry.context.nearbyText)
   if (entry.clarified) console.log('clarified:', entry.clarified)
-  if (entry.screenshot) console.log('screenshot: kept in this browser, id', entry.screenshot)
   console.log('url     :', entry.url)
   console.log('object  :', entry)
   console.groupEnd()
+  return entry
+}
+
+/**
+ * Marks up a comment's picture with its number and words, keeps it, and
+ * attaches it to the comment; see screenshots.ts.
+ */
+async function attachScreenshot(entry: ReviewComment, shot: Screenshot): Promise<void> {
+  const [first, ...rest] = commentTargets(entry)
+  const id = await keepScreenshot(shot, {
+    number: entry.id,
+    comment: entry.comment,
+    about: formatName(first.name) + (rest.length > 0 ? ` + ${rest.length} more` : ''),
+    url: entry.url,
+    when: entry.createdAt,
+  })
+  if (!id) return
+
+  if (setScreenshot(entry.id, id)) {
+    console.log(`[Screen Review] screenshot kept for comment ${entry.id}, id ${id}`)
+  } else {
+    // Deleted while its picture was being marked up.
+    deleteScreenshot(id)
+  }
 }
 
 // --- helpers ----------------------------------------------------------------

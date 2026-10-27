@@ -54,8 +54,9 @@ export type ReviewComment = {
   clarified?: string
   /**
    * The id of the picture taken as the comment was saved, kept in this
-   * browser's IndexedDB; see screenshots.ts. Absent when there is none, as
-   * outside the browser extension.
+   * browser's IndexedDB; see screenshots.ts. Added a moment after the comment
+   * itself, once marked up. Absent when there is none, as outside the
+   * browser extension.
    */
   screenshot?: string
 }
@@ -105,6 +106,20 @@ export function setStatus(id: number, status: ReviewStatus): void {
   const entry = comments.find((c) => c.id === id)
   if (entry) entry.status = status
   notify()
+}
+
+/**
+ * Attaches the picture kept for a comment, which is marked up with its
+ * number and so comes just after it. False when the comment has gone in the
+ * meantime, and the picture with it.
+ */
+export function setScreenshot(id: number, screenshot: string): boolean {
+  load()
+  const entry = comments.find((c) => c.id === id)
+  if (!entry) return false
+  entry.screenshot = screenshot
+  notify()
+  return true
 }
 
 export function removeComment(id: number): void {

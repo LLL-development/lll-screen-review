@@ -52,9 +52,8 @@ export function mountUi(el: Element): void {
 }
 
 /**
- * Hides everything the tool draws but its outlines, while a screenshot is
- * taken (see screenshots.ts); review.css says what goes. The picture then
- * shows the page with what the comment is about marked on it.
+ * Hides everything the tool draws while a screenshot is taken, so the
+ * picture shows the page alone; screenshots.ts marks it up afterwards.
  */
 export function setCapturing(on: boolean): void {
   host?.toggleAttribute('data-capturing', on)
