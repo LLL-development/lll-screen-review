@@ -96,6 +96,14 @@ resolve them. The panel on the right lists every comment, and **Copy JSON**
 hands you the lot. Review mode stays on or off as you left it, through a
 refresh and from one page to the next.
 
+In the browser extension, saving also takes a screenshot: the page as you see
+it, with the comment's elements outlined and the tool's own box, panel and pins
+left out. An element scrolled out of sight is brought back into view first.
+Click the comment's pin to see the picture, full size or downloaded; a camera
+on its panel row says it has one. The test page and the proxy can't take
+screenshots, and a comment never waits on one: if it can't be taken, the
+comment is saved without it.
+
 If an element can't be found any more, its comment stays in the panel tagged
 **ELEMENT NOT FOUND** rather than disappearing — and picks up again if the
 element comes back.
@@ -159,7 +167,7 @@ limits to every extension.
 ```
 toolbar icon ──► background.js ──injects──► content.js   (the tool, in the page)
                       ▲                          │
-                      └──── AI step requests ◄───┘
+                      └─ AI calls, screenshots ◄─┘
                       │
                       └──► dev server /api/clarify
 ```
@@ -167,7 +175,7 @@ toolbar icon ──► background.js ──injects──► content.js   (the to
 | File | Job |
 | --- | --- |
 | [`extension/manifest.json`](extension/manifest.json) | What the extension is and what it may do |
-| [`extension/background.js`](extension/background.js) | The icon, putting the tool back on each page, carrying AI requests |
+| [`extension/background.js`](extension/background.js) | The icon, putting the tool back on each page, carrying AI requests, taking screenshots |
 | [`src/extension/content.ts`](src/extension/content.ts) | Starts and stops the tool in the page; notices single-page apps moving on |
 | [`vite.extension.config.ts`](vite.extension.config.ts) | Bundles the tool into one plain script, `content.js` |
 
@@ -327,6 +335,7 @@ about each save and redraw.
 | [`context.ts`](src/review/context.ts) | What was on screen |
 | [`describe.ts`](src/review/describe.ts) | The element's name in plain words |
 | [`similar.ts`](src/review/similar.ts) | Finding the other elements built like one |
+| [`screenshots.ts`](src/review/screenshots.ts) | Taking, keeping and showing screenshots |
 | [`text.ts`](src/review/text.ts) | Reading visible text off the page |
 | [`clarify.ts`](src/review/clarify.ts) · [`clarify-ui.ts`](src/review/clarify-ui.ts) | The AI step |
 | [`ui.ts`](src/review/ui.ts) | Putting the tool on the page, finding elements |
@@ -406,8 +415,11 @@ actually visible, and `nearbyText` climbs the ancestors until it finds one
 saying more than the element itself. `name` is what the panel and comment box
 show: *Text “$12,480” in Revenue*. A comment on several elements also has
 `others`, the selector and name of each element after the first; `selector`
-and `context` are the first one's, the element clicked. Full reasoning in
-[docs/captured-context.md](docs/captured-context.md).
+and `context` are the first one's, the element clicked. One saved in the
+extension also has `screenshot`, the id of its picture in the browser's
+IndexedDB (`screen-review:screenshots`). The picture lives there rather than
+in `localStorage`, which a few dozen of them would fill, and isn't part of
+Copy JSON. Full reasoning in [docs/captured-context.md](docs/captured-context.md).
 
 ## The AI step
 
@@ -507,8 +519,9 @@ not being able to send a review to anyone is the biggest thing missing.
 
 **The extension keeps comments in the site's own storage.** The tool runs as
 part of the page, so the `localStorage` it saves to is the site's: the site's
-scripts can read your comments, and clearing that site's data deletes them. A
-real backend fixes both.
+scripts can read your comments, and clearing that site's data deletes them.
+Screenshots are kept the same way, in the site's IndexedDB, and show whatever
+was on screen, personal data included. A real backend fixes both.
 
 **The proxy is limited, and dev-only.** See
 [What works, and what doesn't](#what-works-and-what-doesnt). A built site has no

@@ -18,6 +18,10 @@
  * page's own, so a call to localhost is refused. This script belongs to the
  * extension, and host_permissions lets it call localhost.
  *
+ * And it takes the screenshot saved with each comment: only an extension can
+ * photograph a tab. "activeTab" is what allows it, the same permission
+ * clicking the icon gave for putting the tool on the page.
+ *
  * Plain JavaScript on purpose: it is copied into the extension as it is,
  * with nothing in between to compile it.
  */
@@ -29,6 +33,10 @@ const CLARIFY_URL = 'http://localhost:5173/api/clarify'
 const START = 'screen-review:start'
 const STOP = 'screen-review:stop'
 const CLARIFY = 'screen-review:clarify'
+const SCREENSHOT = 'screen-review:screenshot'
+
+/** Small enough to keep hundreds, sharp enough to read the page's text. */
+const SCREENSHOT_QUALITY = 80
 
 const OFF_TITLE = chrome.runtime.getManifest().action.default_title
 const ON_TITLE = 'Screen Review is on: click to switch it off'
@@ -183,5 +191,36 @@ async function askDevServer(body) {
     return { ok: response.ok, status: response.status, data }
   } catch {
     return { unreachable: true }
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type !== SCREENSHOT) return false
+
+  void screenshot(sender.tab).then(sendResponse)
+  return true
+})
+
+/**
+ * A picture of the tab a comment is being saved in, as a JPEG data: URL, in
+ * the shape src/extension/content.ts expects. The browser only photographs
+ * whichever tab a window is showing, so if the reviewer has already switched
+ * to another, the answer is no picture rather than a picture of the wrong
+ * page.
+ */
+async function screenshot(tab) {
+  if (tab?.id === undefined) return { error: 'Not asked from a tab' }
+
+  try {
+    const [showing] = await chrome.tabs.query({ active: true, windowId: tab.windowId })
+    if (showing?.id !== tab.id) return { error: 'The tab is no longer showing' }
+
+    const image = await chrome.tabs.captureVisibleTab(tab.windowId, {
+      format: 'jpeg',
+      quality: SCREENSHOT_QUALITY,
+    })
+    return { image }
+  } catch (error) {
+    return { error: error?.message ?? String(error) }
   }
 }

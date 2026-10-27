@@ -877,3 +877,87 @@
   background: #eceef2;
   color: #7a828f;
 }
+
+/* --- screenshots ----------------------------------------------------------- */
+
+/* While a screenshot is taken (see screenshots.ts), only the outlines of what
+   the comment is about stay on screen. */
+:host([data-capturing]) .sr-toggle,
+:host([data-capturing]) .sr-panel,
+:host([data-capturing]) .sr-pin-layer,
+:host([data-capturing]) .sr-popup,
+:host([data-capturing]) .sr-highlight-candidate {
+  visibility: hidden;
+}
+
+/* In the comment reader: the picture, small, and a way to keep it. */
+.sr-shot {
+  margin: 10px 0 0;
+  color: #7a828f;
+  font-size: 12px;
+}
+
+.sr-popup .sr-shot-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d4d8e0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: zoom-in;
+}
+
+.sr-popup .sr-shot-open:hover {
+  border-color: #2f5bd7;
+}
+
+.sr-shot-open canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.sr-popup .sr-shot-download {
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #2f5bd7;
+  font-size: 12px;
+}
+
+.sr-popup .sr-shot-download:hover {
+  text-decoration: underline;
+}
+
+/* Full size, over the whole window; a click puts it away. */
+.sr-shot-full {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(15 20 35 / 75%);
+  cursor: zoom-out;
+}
+
+.sr-shot-full canvas {
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 4px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+}
+
+/* The camera on a panel row whose comment has a picture. */
+.sr-row-shot {
+  display: inline-flex;
+  color: #7a828f;
+}
+
+.sr-row-shot svg {
+  display: block;
+}

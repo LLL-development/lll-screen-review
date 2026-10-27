@@ -27,6 +27,7 @@ import { createClarifySection } from './clarify-ui'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
 import { findSimilar } from './similar'
+import { buildScreenshot, canTakeScreenshots, takeScreenshot } from './screenshots'
 import './page.css'
 
 /**
@@ -451,22 +452,41 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   actions.insertBefore(clarify.button, saveButton)
   box.insertBefore(clarify.element, actions)
 
-  const submit = () => {
+  let saving = false
+  const submit = async () => {
     const text = textarea.value.trim()
     if (!text) {
       textarea.focus()
       return
     }
+    // Pressed again while the screenshot is being taken: one comment, not two.
+    if (saving) return
+    saving = true
+    saveButton.disabled = true
+
     const others = selected.slice(1).map(({ selector, name }) => ({ selector, name }))
-    capture(selector, text, context, clarify.getClarified(), page, others)
-    closePopup()
+    const clarified = clarify.getClarified()
+
+    // A picture of the page without the element in it says little. Scrolled
+    // straight there: a smooth scroll would still be moving when it's taken.
+    const first = selected[0].el
+    if (canTakeScreenshots() && first.isConnected && !isInView(first)) {
+      first.scrollIntoView({ block: 'center', behavior: 'instant' })
+    }
+
+    // Taken before saving, while the outlines still show what the comment is
+    // about. The comment is saved with or without one.
+    const screenshot = await takeScreenshot()
+    capture(selector, text, context, clarified, page, others, screenshot)
+    // Esc can close the box while the picture is being taken.
+    if (popup?.el === box) closePopup()
   }
 
-  saveButton.addEventListener('click', submit)
+  saveButton.addEventListener('click', () => void submit())
   cancelButton.addEventListener('click', closePopup)
   textarea.addEventListener('keydown', (event) => {
     if (event.isComposing) return
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit()
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void submit()
   })
 
   mountUi(box)
@@ -591,6 +611,11 @@ function openCommentReader(comment: ReviewComment): void {
     text.after(clarified)
   }
 
+  const actions = box.querySelector('.sr-popup-actions') as HTMLElement
+  if (comment.screenshot) {
+    box.insertBefore(buildScreenshot(comment.screenshot, comment.id), actions)
+  }
+
   const closeButton = box.querySelector('.sr-cancel') as HTMLButtonElement
   closeButton.addEventListener('click', closePopup)
 
@@ -670,6 +695,7 @@ function capture(
   clarified: string,
   url: string,
   others: CommentTarget[],
+  screenshot: string | null,
 ): void {
   const entry = addComment({
     selector,
@@ -681,6 +707,8 @@ function capture(
     // Only present when the reviewer went through the clarify step and kept
     // the wording.
     ...(clarified ? { clarified } : {}),
+    // Only present when a picture was taken; see screenshots.ts.
+    ...(screenshot ? { screenshot } : {}),
   })
 
   console.group(
@@ -696,6 +724,7 @@ function capture(
   console.log('element :', `<${entry.context.tagName}> ${entry.context.text}`)
   console.log('nearby  :', entry.context.nearbyText)
   if (entry.clarified) console.log('clarified:', entry.clarified)
+  if (entry.screenshot) console.log('screenshot: kept in this browser, id', entry.screenshot)
   console.log('url     :', entry.url)
   console.log('object  :', entry)
   console.groupEnd()
@@ -770,6 +799,17 @@ function buildTarget(
 
   target.append(count, toggle, list, code)
   return target
+}
+
+/** Whether any of the element is inside the window. */
+function isInView(el: Element): boolean {
+  const rect = el.getBoundingClientRect()
+  return (
+    rect.bottom > 0 &&
+    rect.right > 0 &&
+    rect.top < window.innerHeight &&
+    rect.left < window.innerWidth
+  )
 }
 
 /**

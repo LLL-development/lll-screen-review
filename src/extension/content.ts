@@ -7,6 +7,7 @@ import {
   stopReviewTool,
 } from '../review/review'
 import { setClarifySender, type ClarifyResponse } from '../review/clarify'
+import { setScreenshotTaker } from '../review/screenshots'
 import { UI_ATTR } from '../review/ui'
 
 /**
@@ -24,14 +25,20 @@ import { UI_ATTR } from '../review/ui'
  *   watches the address and tells the tool.
  * - The AI step's requests go through the extension. This script runs as
  *   part of someone else's page, which isn't allowed to call the dev server.
+ * - Saving a comment takes a screenshot. Only an extension can photograph a
+ *   tab, so the background script takes it.
  */
 
 /** Message types, shared with extension/background.js. */
 const START = 'screen-review:start'
 const STOP = 'screen-review:stop'
 const CLARIFY = 'screen-review:clarify'
+const SCREENSHOT = 'screen-review:screenshot'
 
 type BackgroundReply = ClarifyResponse | { unreachable: true }
+
+/** The tab as a JPEG data: URL, or why there is none. */
+type ScreenshotReply = { image: string } | { error: string }
 
 // The background script checks before injecting this, but a click and a page
 // finishing loading can both pass that check before either has put anything
@@ -40,6 +47,7 @@ if (!document.querySelector(`[${UI_ATTR}]`)) start()
 
 function start(): void {
   setClarifySender(sendThroughExtension)
+  setScreenshotTaker(screenshotThroughExtension)
   startReviewTool({ pageUrl: location.href })
   const stopWatching = watchAddress()
 
@@ -106,4 +114,28 @@ async function sendThroughExtension(
     )
   }
   return reply
+}
+
+/**
+ * Asks the background script for a picture of this tab. Rejects when there's
+ * none, and the comment is saved without one. A message that fails outright
+ * means the extension was reloaded since this page opened.
+ */
+async function screenshotThroughExtension(): Promise<Blob> {
+  const reply: ScreenshotReply | undefined = await chrome.runtime.sendMessage({
+    type: SCREENSHOT,
+  })
+  if (!reply || 'error' in reply) throw new Error(reply?.error ?? 'No reply')
+  return blobFromDataUrl(reply.image)
+}
+
+/**
+ * Decoded by hand rather than with fetch(): a site's security rules can
+ * forbid fetching data: URLs, and nothing forbids atob.
+ */
+function blobFromDataUrl(url: string): Blob {
+  const comma = url.indexOf(',')
+  const type = /^data:([^;,]+)/.exec(url)?.[1] ?? 'image/jpeg'
+  const bytes = Uint8Array.from(atob(url.slice(comma + 1)), (c) => c.charCodeAt(0))
+  return new Blob([bytes], { type })
 }

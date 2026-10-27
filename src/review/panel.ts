@@ -25,6 +25,12 @@ import { mountUi, onRemoveUi } from './ui'
 /** How often each row re-checks whether its element is still on the page. */
 const RECHECK_MS = 1000
 
+/** Fixed markup of our own, never page data, so innerHTML is fine. */
+const CAMERA_ICON =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">' +
+  '<path fill="currentColor" fill-rule="evenodd" d="M5.5 2 4.3 3.5H2.5A1.5 1.5 0 0 0 1 5v7.5A1.5 1.5 0 0 0 2.5 14h11a1.5 1.5 0 0 0 1.5-1.5V5a1.5 1.5 0 0 0-1.5-1.5h-1.8L10.5 2h-5ZM8 5.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm0 1.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/>' +
+  '</svg>'
+
 const panel = document.createElement('aside')
 panel.className = 'sr-panel'
 panel.hidden = true
@@ -220,6 +226,14 @@ function buildRow(comment: ReviewComment): HTMLElement {
   status.className = 'sr-row-status'
   status.textContent = comment.status === 'resolved' ? 'Resolved' : 'Open'
 
+  // A camera when there's a picture to see; opening the comment shows it.
+  const shot = document.createElement('span')
+  shot.className = 'sr-row-shot'
+  shot.title = 'Has a screenshot'
+  shot.setAttribute('aria-label', shot.title)
+  shot.innerHTML = CAMERA_ICON
+  const marks = comment.screenshot ? [status, shot] : [status]
+
   // Shown when the stored selector no longer matches anything: the comment is
   // still worth reading, there is just nowhere on the page to point at.
   const missing = document.createElement('span')
@@ -252,14 +266,14 @@ function buildRow(comment: ReviewComment): HTMLElement {
     where.className = 'sr-row-page'
     where.textContent = `→ ${page}`
 
-    foot.append(status, where, time, resolve)
+    foot.append(...marks, where, time, resolve)
     row.classList.add('sr-row-elsewhere')
     row.title = `Go to ${page}`
     row.addEventListener('click', () => goTo(comment))
     return row
   }
 
-  foot.append(status, missing, time, resolve)
+  foot.append(...marks, missing, time, resolve)
 
   /**
    * The page can change under us — an element may be re-rendered, removed, or

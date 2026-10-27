@@ -19,6 +19,7 @@
 
 import type { ElementContext } from './context'
 import { nameFromSaved, type ElementName } from './describe'
+import { deleteScreenshot } from './screenshots'
 
 /** Where a comment is in its life: still needs doing, or dealt with. */
 export type ReviewStatus = 'open' | 'resolved'
@@ -51,6 +52,12 @@ export type ReviewComment = {
    * by the reviewer. Absent when nobody clarified.
    */
   clarified?: string
+  /**
+   * The id of the picture taken as the comment was saved, kept in this
+   * browser's IndexedDB; see screenshots.ts. Absent when there is none, as
+   * outside the browser extension.
+   */
+  screenshot?: string
 }
 
 /** Every element a comment is about, the one clicked first. */
@@ -103,7 +110,11 @@ export function setStatus(id: number, status: ReviewStatus): void {
 export function removeComment(id: number): void {
   load()
   const index = comments.findIndex((c) => c.id === id)
-  if (index !== -1) comments.splice(index, 1)
+  if (index !== -1) {
+    const [removed] = comments.splice(index, 1)
+    // Kept apart from the comment, so it has to go separately.
+    if (removed.screenshot) deleteScreenshot(removed.screenshot)
+  }
   notify()
 }
 
@@ -354,6 +365,9 @@ function toComment(value: unknown): ReviewComment | null {
     ...(others.length > 0 ? { others } : {}),
     ...(typeof raw.clarified === 'string' && raw.clarified
       ? { clarified: raw.clarified }
+      : {}),
+    ...(typeof raw.screenshot === 'string' && raw.screenshot
+      ? { screenshot: raw.screenshot }
       : {}),
   }
 }

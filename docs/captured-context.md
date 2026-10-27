@@ -196,6 +196,20 @@ That is enough to pin and list them. The AI step gets the first element's
 context, as for any comment, plus the names of the rest, so it knows the
 request is about all of them.
 
+## The screenshot
+
+In the browser extension, saving a comment also takes a picture of the window:
+the page as the reviewer saw it, with the comment's elements outlined and the
+tool's own box, panel and pins hidden. The text above says *what* the element
+was; the picture shows what it looked like, which is what "this looks off"
+was about.
+
+The comment stores only an id, `"screenshot": "38083fad1a043bb46bc66cbb"`. The
+picture itself, a JPEG of a few hundred KB, is kept in the browser's IndexedDB,
+because `localStorage` holds about 5 MB for the whole site and a few dozen
+pictures would fill it. Deleting the comment deletes its picture. See
+[`src/review/screenshots.ts`](../src/review/screenshots.ts).
+
 ## Older comments
 
 Comments saved before context existed load with an empty context rather than
