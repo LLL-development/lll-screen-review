@@ -687,10 +687,26 @@
   flex: none;
 }
 
-.sr-panel-count {
+.sr-panel-heading {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.sr-panel-count {
   color: #7a828f;
   font-size: 11px;
+}
+
+.sr-panel-count:empty {
+  display: none;
+}
+
+.sr-panel-copy {
+  flex: none;
+  white-space: nowrap;
 }
 
 .sr-row-number {
@@ -1305,4 +1321,235 @@
   .sr-panel.sr-gliding {
     transition: none;
   }
+}
+
+/* --- preparing tickets ----------------------------------------------------- */
+
+.sr-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483100;
+  background: rgb(15 20 35 / 35%);
+}
+
+.sr-sheet {
+  position: fixed;
+  top: 6vh;
+  left: calc((100vw - min(760px, 100vw - 32px)) / 2);
+  z-index: 2147483101;
+  display: flex;
+  flex-direction: column;
+  width: min(760px, calc(100vw - 32px));
+  max-height: 88vh;
+  border: 1px solid #d4d8e0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgb(15 20 35 / 30%);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #1b1f2a;
+}
+
+.sr-sheet button {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 13px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sr-sheet .sr-save {
+  border: 0;
+  background: #2f5bd7;
+  color: #fff;
+}
+
+.sr-sheet .sr-save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sr-sheet .sr-cancel {
+  border: 1px solid #d4d8e0;
+  background: #fff;
+  color: #3a4252;
+}
+
+.sr-sheet-head {
+  padding: 18px 22px 12px;
+  border-bottom: 1px solid #eef0f4;
+}
+
+.sr-sheet-head h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.sr-sheet-head p {
+  margin: 0;
+  color: #5b6372;
+  font-size: 13px;
+}
+
+.sr-sheet-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.sr-ticket {
+  display: flex;
+  gap: 12px;
+  padding: 14px 22px;
+  border-bottom: 1px solid #eef0f4;
+}
+
+/* Not going out: still there to tick, but quieter. */
+.sr-ticket:not(.sr-ticket-picked) .sr-ticket-main {
+  opacity: 0.6;
+}
+
+.sr-ticket-pick {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 3px 0 0;
+  cursor: pointer;
+}
+
+.sr-ticket-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sr-ticket-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sr-ticket-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-ticket-page {
+  flex: none;
+  color: #7a828f;
+  font-size: 12px;
+}
+
+.sr-ticket-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 6px 0 0;
+}
+
+.sr-ticket-hints:empty {
+  display: none;
+}
+
+.sr-ticket-hint {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sr-ticket-hint-warn {
+  background: #fff4e0;
+  color: #8a5300;
+}
+
+.sr-ticket-hint-info {
+  background: #eceef2;
+  color: #5b6372;
+}
+
+.sr-ticket-preview {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px 12px;
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.sr-ticket-preview dt {
+  color: #7a828f;
+}
+
+.sr-ticket-preview dd {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sr-ticket .sr-editor {
+  margin-top: 10px;
+}
+
+.sr-ticket-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.sr-sheet .sr-ticket-actions button {
+  padding: 3px 10px;
+  border: 1px solid #d4d8e0;
+  background: #fff;
+  color: #3a4252;
+  font-size: 12px;
+}
+
+.sr-sheet .sr-ticket-actions button:hover {
+  border-color: #2f5bd7;
+  color: #2f5bd7;
+}
+
+.sr-ticket-markdown {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  padding: 10px;
+  overflow-x: auto;
+  border-radius: 6px;
+  background: #f5f6f8;
+  color: #3a4252;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.sr-ticket-markdown[hidden] {
+  display: none;
+}
+
+.sr-sheet-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-top: 1px solid #eef0f4;
+}
+
+.sr-sheet-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #3a4252;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sr-sheet-status {
+  flex: 1;
+  color: #2b7a3d;
+  font-size: 12px;
 }

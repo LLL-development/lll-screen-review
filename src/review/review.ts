@@ -31,6 +31,7 @@ import { dockPiece, mountDock, seeThrough } from './dock'
 import { findSimilar } from './similar'
 import { applySavedSize, placeReader } from './reader'
 import { buildCommentEditor, buildEditedNote, type CommentEditor } from './edit'
+import { escapeTicketReview, openTicketReview } from './tickets'
 import {
   buildScreenshot,
   canTakeScreenshots,
@@ -150,7 +151,7 @@ export function startReviewTool(options: ReviewToolOptions = {}): void {
 
   mountUi(toggle)
   mountHighlight()
-  mountPanel(goToComment)
+  mountPanel(goToComment, openTickets)
   mountPins(openCommentReader)
   mountDock()
   dockPiece(toggle, () => true)
@@ -385,7 +386,9 @@ function onKeyDown(event: KeyboardEvent): void {
 
   if (event.key !== 'Escape') return
 
-  if (popup?.escape?.()) {
+  if (escapeTicketReview()) {
+    // The ticket review is on top of everything else, so it goes first.
+  } else if (popup?.escape?.()) {
     // Handled; see the popup's escape.
   } else if (popup) closePopup()
   else if (reviewMode) setReviewMode(false)
@@ -827,6 +830,17 @@ function goToComment(comment: ReviewComment): void {
   }
   writeSession(OPEN_KEY, String(comment.id))
   goToPage(comment.url)
+}
+
+/** Opens the ticket review from the panel, in place of any reader. */
+function openTickets(): void {
+  // Not at the cost of a comment still being written.
+  if (popup?.hasDraft()) {
+    nudgePopup()
+    return
+  }
+  closePopup()
+  openTicketReview()
 }
 
 /**

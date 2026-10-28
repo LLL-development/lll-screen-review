@@ -153,6 +153,22 @@ you're halfway through writing is never thrown away by moving on — the panel
 won't take you elsewhere until you save or cancel it, and the browser asks
 before leaving the page.
 
+### Turning comments into tickets
+
+**Tickets** in the panel lays out every comment on the site as the ticket it
+would become: the requirement (the clarified wording, or the note if nobody
+clarified it), the note it came from, **Done when**, and the element. It
+flags what would leave a developer guessing, like *No clarified requirement*,
+*Very short* or *No "done when"*, and **Edit** fixes a comment right there.
+**Markdown** shows exactly what will be copied.
+
+Tick the ones to send and **Copy** puts them on the clipboard as Markdown, one
+ticket after another, ready to paste into Lorely or any other tracker. Open
+comments not yet copied start ticked. Each comment remembers being copied, so
+the list says what's gone out already, and editing one afterwards warns that
+its ticket won't follow. Creating tickets directly waits on a server, since a
+tracker's key can't live in the page.
+
 ## The browser extension
 
 The way to review any live site. The tool runs inside the real page, in your
@@ -370,6 +386,8 @@ about each save and redraw.
 | [`dock.ts`](src/review/dock.ts) | Which corner the pill and panel sit in, and moving them |
 | [`reader.ts`](src/review/reader.ts) | Where a comment opens beside its element, and its size |
 | [`edit.ts`](src/review/edit.ts) | Rewording a saved comment, keeping how it was first put |
+| [`tickets.ts`](src/review/tickets.ts) | Checking comments, then copying them out as tickets |
+| [`clipboard.ts`](src/review/clipboard.ts) | Copying text, with a fallback for when the browser says no |
 | [`text.ts`](src/review/text.ts) | Reading visible text off the page |
 | [`clarify.ts`](src/review/clarify.ts) · [`clarify-ui.ts`](src/review/clarify-ui.ts) | The AI step |
 | [`ui.ts`](src/review/ui.ts) | Putting the tool on the page, finding elements |
@@ -455,7 +473,8 @@ IndexedDB (`screen-review:screenshots`). The picture lives there rather than
 in `localStorage`, which a few dozen of them would fill, and isn't part of
 Copy JSON. An edited comment has `original`, its `comment` and `clarified` as
 first left, and `editedAt`; `acceptance` is the **Done when** line, when
-someone wrote one. Full reasoning in [docs/captured-context.md](docs/captured-context.md).
+someone wrote one; `copiedForTicketAt` is when it was last copied out as a
+ticket. Full reasoning in [docs/captured-context.md](docs/captured-context.md).
 
 ## The AI step
 
@@ -601,7 +620,8 @@ management, and the panel isn't announced to screen readers.
 
 ## Roadmap
 
-1. Turn a clarified comment into a Lorely ticket. Next up.
+1. Create Lorely tickets directly, from the server, instead of copying
+   Markdown. Next up, once Lorely's API is confirmed.
 2. A real backend, replacing the `localStorage` internals of `store.ts`. Nothing
    else should need to change — that's what the seam is for.
 3. Move `/api/clarify` to that backend so clarification survives a build, and

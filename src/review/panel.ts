@@ -22,6 +22,7 @@ import { previewHighlight, endPreview, foundTargets } from './highlight'
 import { buildName, formatName } from './describe'
 import { isShown, mountUi, onRemoveUi } from './ui'
 import { dockPiece } from './dock'
+import { copyText } from './clipboard'
 
 /** How often each row re-checks whether its element is still on the page. */
 const RECHECK_MS = 1000
@@ -45,8 +46,15 @@ let rowChecks: (() => void)[] = []
 /** What clicking a comment from another page does; supplied by review.ts. */
 let goTo: (comment: ReviewComment) => void = () => {}
 
-export function mountPanel(goToComment: (comment: ReviewComment) => void): void {
+/** What the Tickets button does; supplied by review.ts. */
+let openTickets: () => void = () => {}
+
+export function mountPanel(
+  goToComment: (comment: ReviewComment) => void,
+  openTicketReview: () => void,
+): void {
   goTo = goToComment
+  openTickets = openTicketReview
   mountUi(panel)
   // Grabbed by its header, not its buttons; the list below scrolls.
   dockPiece(
@@ -167,7 +175,21 @@ function buildHeader(comments: readonly ReviewComment[]): HTMLElement {
     setTimeout(() => (copy.textContent = 'Copy JSON'), copied ? 1200 : 3000)
   })
 
-  header.append(collapse, title, count, copy)
+  // Copy JSON is everything, raw; Tickets is checking what goes out first.
+  const tickets = document.createElement('button')
+  tickets.type = 'button'
+  tickets.className = 'sr-panel-copy sr-panel-tickets'
+  tickets.textContent = 'Tickets'
+  tickets.title = 'Check and fix comments, then copy them as tickets'
+  tickets.disabled = comments.length === 0
+  tickets.addEventListener('click', () => openTickets())
+
+  // The count under the title, so the header's buttons fit beside them.
+  const heading = document.createElement('div')
+  heading.className = 'sr-panel-heading'
+  heading.append(title, count)
+
+  header.append(collapse, heading, tickets, copy)
   return header
 }
 
@@ -334,7 +356,7 @@ function buildRow(comment: ReviewComment): HTMLElement {
 }
 
 /** A comment's page, short enough for a tag: "/about", or "Home page". */
-function pageLabel(url: string): string {
+export function pageLabel(url: string): string {
   try {
     const { pathname, search, hash } = new URL(pageKey(url))
     const path = pathname + search + hash
@@ -351,26 +373,4 @@ function formatTime(iso: string): string {
   return date.toDateString() === new Date().toDateString()
     ? date.toLocaleTimeString()
     : date.toLocaleString()
-}
-
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    // No clipboard API off localhost over plain http, or the browser said
-    // no. The old select-and-copy way still works in most of those cases.
-    const area = document.createElement('textarea')
-    area.value = text
-    area.style.cssText = 'position:fixed;top:0;left:0;opacity:0'
-    mountUi(area)
-    area.select()
-    try {
-      return document.execCommand('copy')
-    } catch {
-      return false
-    } finally {
-      area.remove()
-    }
-  }
 }
