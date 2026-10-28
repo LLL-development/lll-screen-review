@@ -89,6 +89,7 @@ template repeats. Every element gets a pin with the comment's number.
 | Click a pin | Read that comment back, review mode on or off |
 | Hover a panel row | Outline that comment's elements |
 | Click a panel row | Scroll to that element, or go to its page |
+| Drag the pill, or the panel's header | Move them both to another corner |
 
 Saving drops a numbered pin on the element. Pins stay on their element as the
 page scrolls, animates or re-renders, survive a refresh, and grey out when you
@@ -107,6 +108,13 @@ Click the comment's pin to see the picture, full size or downloaded; a camera
 on its panel row says it has one. The test page and the proxy can't take
 screenshots, and a comment never waits on one: if it can't be taken, the
 comment is saved without it.
+
+The pill and the panel sit together in a corner, bottom right to begin with.
+When they're in the way, drag either one, by the pill or the panel's header:
+the four corners light up, and letting go glides them into the nearest. At the
+top, the panel hangs below the pill. The corner is remembered for the site.
+They also fade on their own when you point at something they're half covering,
+a chat button in the corner, say, and come back as you reach for them.
 
 If an element can't be found any more, its comment stays in the panel tagged
 **ELEMENT NOT FOUND** rather than disappearing — and picks up again if the
@@ -340,6 +348,7 @@ about each save and redraw.
 | [`describe.ts`](src/review/describe.ts) | The element's name in plain words |
 | [`similar.ts`](src/review/similar.ts) | Finding the other elements built like one |
 | [`screenshots.ts`](src/review/screenshots.ts) | Taking, keeping and showing screenshots |
+| [`dock.ts`](src/review/dock.ts) | Which corner the pill and panel sit in, and moving them |
 | [`text.ts`](src/review/text.ts) | Reading visible text off the page |
 | [`clarify.ts`](src/review/clarify.ts) · [`clarify-ui.ts`](src/review/clarify-ui.ts) | The AI step |
 | [`ui.ts`](src/review/ui.ts) | Putting the tool on the page, finding elements |

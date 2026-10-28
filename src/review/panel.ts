@@ -21,6 +21,7 @@ import {
 import { previewHighlight, endPreview, foundTargets } from './highlight'
 import { buildName, formatName } from './describe'
 import { mountUi, onRemoveUi } from './ui'
+import { dockPiece } from './dock'
 
 /** How often each row re-checks whether its element is still on the page. */
 const RECHECK_MS = 1000
@@ -47,6 +48,11 @@ let goTo: (comment: ReviewComment) => void = () => {}
 export function mountPanel(goToComment: (comment: ReviewComment) => void): void {
   goTo = goToComment
   mountUi(panel)
+  // Grabbed by its header, not its buttons; the list below scrolls.
+  dockPiece(
+    panel,
+    (target) => Boolean(target.closest('.sr-panel-header')) && !target.closest('button'),
+  )
   onChange(render)
   render()
 

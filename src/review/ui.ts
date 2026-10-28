@@ -60,6 +60,15 @@ export function setCapturing(on: boolean): void {
 }
 
 /**
+ * Sets, or with null clears, a data- attribute on the host, for review.css
+ * to style the whole tool by: which corner it sits in, say (see dock.ts).
+ */
+export function setHostState(name: string, value: string | null): void {
+  if (value === null) host?.removeAttribute(`data-${name}`)
+  else host?.setAttribute(`data-${name}`, value)
+}
+
+/**
  * Puts the host on the page the first time a piece needs it, and puts it
  * straight back if the page throws it out.
  *

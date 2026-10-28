@@ -27,6 +27,7 @@ import { buildName, describeElement, formatName } from './describe'
 import { createClarifySection } from './clarify-ui'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
+import { dockPiece, mountDock, seeThrough } from './dock'
 import { findSimilar } from './similar'
 import {
   buildScreenshot,
@@ -144,6 +145,8 @@ export function startReviewTool(options: ReviewToolOptions = {}): void {
   mountHighlight()
   mountPanel(goToComment)
   mountPins(openCommentReader)
+  mountDock()
+  dockPiece(toggle, () => true)
 
   // Comments restored from a previous visit should be visible straight away,
   // without having to turn review mode on first.
@@ -220,6 +223,7 @@ export function setReviewMode(on: boolean): void {
   if (!on) {
     closePopup()
     hideHighlight()
+    seeThrough(null)
   }
 
   refreshPanelVisibility()
@@ -265,12 +269,18 @@ function onMouseMove(event: MouseEvent): void {
   }
 
   // Over our own toolbar or panel: leave the highlight alone. The panel points
-  // it at the element belonging to whichever row you are hovering.
-  if (isOurUi(target)) return
+  // it at the element belonging to whichever row you are hovering. Reaching
+  // for them makes them solid again, if they had gone see-through.
+  if (isOurUi(target)) {
+    seeThrough(null)
+    return
+  }
 
   // Naming reads the page's text and layout, so only when the element changes.
   if (target !== highlightedElement()) {
     showHighlight([{ el: target, text: formatName(describeElement(target)) }])
+    // The pill and panel fade when they hide part of what's pointed at.
+    seeThrough(target)
   }
 }
 
@@ -914,6 +924,7 @@ function buildToggle(): HTMLButtonElement {
   button.className = 'sr-toggle'
   button.type = 'button'
   button.dataset.on = 'false'
+  button.title = 'Click to switch review mode on or off. Drag to move it to another corner.'
   button.innerHTML =
     '<span class="sr-toggle-dot"></span><span class="sr-toggle-text">Review mode: off</span>'
   button.addEventListener('click', () => setReviewMode(!reviewMode))

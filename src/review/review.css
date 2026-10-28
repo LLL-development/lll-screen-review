@@ -958,3 +958,126 @@
 .sr-row-shot svg {
   display: block;
 }
+
+/* --- moving the pill and panel to another corner (see dock.ts) ------------ */
+
+/* Bottom right unless moved: the rules at the top of this file. */
+:host([data-corner$="left"]) .sr-toggle,
+:host([data-corner$="left"]) .sr-panel {
+  right: auto;
+  left: 20px;
+}
+
+:host([data-corner^="top"]) .sr-toggle {
+  bottom: auto;
+  top: 20px;
+}
+
+/* At the top, the panel hangs below the pill instead of standing on it. */
+:host([data-corner^="top"]) .sr-panel {
+  bottom: auto;
+  top: 74px;
+}
+
+/* They can be grabbed; text in them isn't for selecting while they are. */
+.sr-toggle,
+.sr-panel-header {
+  user-select: none;
+  touch-action: none;
+}
+
+.sr-panel-header {
+  cursor: grab;
+}
+
+.sr-panel-header button {
+  cursor: pointer;
+}
+
+:host([data-dragging]) .sr-toggle,
+:host([data-dragging]) .sr-panel,
+:host([data-dragging]) .sr-panel-header {
+  cursor: grabbing;
+}
+
+/* The page under the pointer isn't being pointed at while they're carried
+   across it. */
+:host([data-dragging]) .sr-highlight-layer {
+  display: none;
+}
+
+/* While dragging: lifted off the page, and following the pointer exactly. */
+:host([data-dragging]) .sr-toggle,
+:host([data-dragging]) .sr-panel {
+  box-shadow: 0 14px 34px rgb(15 20 35 / 28%);
+}
+
+/* Letting go: a glide into the corner, overshooting a touch. Two classes, to
+   win over the fade's transition further down, which it keeps. */
+.sr-toggle.sr-gliding,
+.sr-panel.sr-gliding {
+  transition:
+    translate 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.15),
+    opacity 0.15s;
+}
+
+/* The four places they can go, shown only while dragging. */
+.sr-dock-spots {
+  display: none;
+}
+
+:host([data-dragging]) .sr-dock-spots {
+  display: block;
+}
+
+.sr-dock-spot {
+  position: fixed;
+  z-index: 2147482900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 300px;
+  height: 58px;
+  border: 2px dashed rgb(47 91 215 / 40%);
+  border-radius: 14px;
+  background: rgb(47 91 215 / 6%);
+  color: transparent;
+  font: 600 12px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  pointer-events: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.sr-dock-spot[data-corner$="right"] { right: 12px; }
+.sr-dock-spot[data-corner$="left"] { left: 12px; }
+.sr-dock-spot[data-corner^="top"] { top: 12px; }
+.sr-dock-spot[data-corner^="bottom"] { bottom: 12px; }
+
+/* The one they'd go to if let go now. */
+.sr-dock-spot[data-near] {
+  border-style: solid;
+  border-color: #2f5bd7;
+  background: rgb(47 91 215 / 14%);
+  color: #2f5bd7;
+}
+
+/* Hiding part of what the reviewer is pointing at: faded, so it shows
+   through. Reaching for them brings them back. */
+.sr-toggle,
+.sr-panel {
+  transition: opacity 0.15s;
+}
+
+:host([data-see-through]) .sr-toggle,
+:host([data-see-through]) .sr-panel {
+  opacity: 0.2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sr-dock-spot,
+  .sr-toggle,
+  .sr-panel,
+  .sr-toggle.sr-gliding,
+  .sr-panel.sr-gliding {
+    transition: none;
+  }
+}
