@@ -9,6 +9,10 @@
  *
  * The pins redraw themselves from the store whenever it changes, so adding or
  * deleting a comment updates them without anyone having to say so.
+ *
+ * A pin only shows while its element can be seen. An element inside a popup
+ * the site has faded out, or underneath one it has opened, still has a
+ * rectangle, and its pin would otherwise float over nothing; see isShown.
  */
 
 import {
@@ -18,9 +22,9 @@ import {
   onChange,
   type ReviewComment,
 } from './store'
-import { findElement, mountUi, onRemoveUi } from './ui'
+import { findElement, isShown, mountUi, onRemoveUi } from './ui'
 
-/** How often the selectors are looked up again; see track. */
+/** How often the selectors are looked up again, and pins checked for being seen; see track. */
 const RECHECK_MS = 500
 
 const layer = document.createElement('div')
@@ -39,6 +43,8 @@ const placed: {
   selector: string
   el: Element | null
   node: HTMLElement | null
+  /** Whether the element could be seen at the last check. */
+  shown: boolean
 }[] = []
 
 let frame = 0
@@ -72,10 +78,11 @@ function render(): void {
       // the panel, there is just nowhere on the page to put a marker — for now.
       const node = el ? buildPin(comment) : null
       if (node) layer.appendChild(node)
-      placed.push({ comment, selector, el, node })
+      placed.push({ comment, selector, el, node, shown: true })
     }
   }
 
+  checkShown()
   repositionPins()
   lastCheck = performance.now()
   if (placed.length > 0) frame ||= requestAnimationFrame(track)
@@ -98,6 +105,7 @@ function track(now: number): void {
       render()
       return
     }
+    checkShown()
   }
 
   repositionPins()
@@ -121,6 +129,14 @@ function buildPin(comment: ReviewComment): HTMLElement {
   return pin
 }
 
+/**
+ * Asking the browser what's on top is too much to do every frame, so it's
+ * done on the recheck: a pin lags a popup closing by half a second at most.
+ */
+function checkShown(): void {
+  for (const p of placed) p.shown = p.el !== null && isShown(p.el)
+}
+
 function repositionPins(): void {
   // Every rectangle first, then every write: reading after writing would
   // make the browser redo its layout once per pin.
@@ -128,7 +144,7 @@ function repositionPins(): void {
     el && node && el.isConnected ? el.getBoundingClientRect() : null,
   )
 
-  placed.forEach(({ node }, i) => {
+  placed.forEach(({ node, shown }, i) => {
     if (!node) return
     const rect = rects[i]
 
@@ -141,5 +157,7 @@ function repositionPins(): void {
     node.style.display = 'flex'
     node.style.top = `${rect.top}px`
     node.style.left = `${rect.left}px`
+    // Faded rather than taken away, so it comes back the same way.
+    node.toggleAttribute('data-unseen', !shown)
   })
 }

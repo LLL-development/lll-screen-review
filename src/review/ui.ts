@@ -127,3 +127,56 @@ export function findElement(selector: string): Element | null {
     return null
   }
 }
+
+/**
+ * Whether an element can actually be seen, not just whether it is there.
+ *
+ * Plenty of sites close a popup without removing it: they fade it out,
+ * hide it, or slide it away, and it keeps its full size the whole time. A
+ * pin on its button would float over nothing. And a popup that opens covers
+ * whatever was pinned underneath. So this asks the browser what is on top
+ * at a few points across the element, skipping the tool's own pieces.
+ *
+ * The element itself, or something inside it, being on top means it shows.
+ * An ancestor being on top usually means the element just doesn't take
+ * clicks (pointer-events: none), so then its styles decide: faded right out
+ * or hidden means no. An element out of the window counts as shown, since
+ * there is nothing on screen to get wrong.
+ */
+export function isShown(el: Element, rect = el.getBoundingClientRect()): boolean {
+  if (!el.isConnected || (rect.width === 0 && rect.height === 0)) return false
+
+  const left = Math.max(rect.left, 0)
+  const right = Math.min(rect.right, window.innerWidth)
+  const top = Math.max(rect.top, 0)
+  const bottom = Math.min(rect.bottom, window.innerHeight)
+  if (left >= right || top >= bottom) return true
+
+  // The middle first, then a little in from each corner: a sticky header
+  // over the top half still leaves the rest to see.
+  const xs = [(left + right) / 2, left + (right - left) * 0.1, right - (right - left) * 0.1]
+  const ys = [(top + bottom) / 2, top + (bottom - top) * 0.1, bottom - (bottom - top) * 0.1]
+  const points = [
+    [xs[0], ys[0]],
+    [xs[1], ys[1]],
+    [xs[2], ys[1]],
+    [xs[1], ys[2]],
+    [xs[2], ys[2]],
+  ]
+
+  let underAncestor = false
+  for (const [x, y] of points) {
+    const hit = document.elementsFromPoint(x, y).find((e) => !isOurUi(e))
+    if (!hit) continue
+    if (el === hit || el.contains(hit)) return true
+    if (hit.contains(el)) underAncestor = true
+  }
+  return underAncestor && looksVisible(el)
+}
+
+/** Not faded out or hidden, by its own styles or a parent's. */
+function looksVisible(el: Element): boolean {
+  // Every browser the extension runs in has it; the test page may not.
+  if (!('checkVisibility' in el)) return true
+  return el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+}

@@ -20,7 +20,7 @@ import {
 } from './store'
 import { previewHighlight, endPreview, foundTargets } from './highlight'
 import { buildName, formatName } from './describe'
-import { mountUi, onRemoveUi } from './ui'
+import { isShown, mountUi, onRemoveUi } from './ui'
 import { dockPiece } from './dock'
 
 /** How often each row re-checks whether its element is still on the page. */
@@ -285,23 +285,44 @@ function buildRow(comment: ReviewComment): HTMLElement {
    * The page can change under us — an element may be re-rendered, removed, or
    * appear later — so the missing state is re-checked rather than decided once.
    * A comment on several elements is only missing once all of them are.
+   *
+   * Found but not seen is its own case: the element is in a popup or menu
+   * that's closed right now, and opening it brings the pin back. Saying
+   * "not found" there would send someone looking for a bug that isn't one.
    */
-  const syncMissing = (found: readonly unknown[]) => {
+  const sync = () => {
+    const found = foundTargets(comment)
+    const seen = found.filter((t) => isShown(t.el))
+    const unseen = found.length > 0 && seen.length === 0
     row.classList.toggle('sr-row-missing', found.length === 0)
-    missing.hidden = found.length > 0
+    row.classList.toggle('sr-row-unseen', unseen)
+    missing.hidden = found.length > 0 && !unseen
+    missing.textContent = unseen ? 'Hidden right now' : 'Element not found'
+    missing.title = unseen
+      ? 'It is on the page, but inside something closed, like a popup or a menu. Open it and the pin comes back.'
+      : ''
+    return seen
   }
 
-  syncMissing(foundTargets(comment))
-  rowChecks.push(() => syncMissing(foundTargets(comment)))
+  sync()
+  rowChecks.push(sync)
 
   row.addEventListener('mouseenter', () => {
-    const found = foundTargets(comment)
-    syncMissing(found)
-    if (found.length > 0) previewHighlight(found)
+    const seen = sync()
+    if (seen.length > 0) previewHighlight(seen)
   })
   row.addEventListener('mouseleave', () => endPreview())
   row.addEventListener('click', () => {
-    foundTargets(comment)[0]?.el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const seen = sync()
+    if (seen.length > 0) {
+      seen[0].el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+    // Nothing to scroll to: point at the tag that says why, rather than
+    // leaving the click to do nothing at all.
+    missing.classList.remove('sr-row-missing-nudge')
+    void missing.offsetWidth
+    missing.classList.add('sr-row-missing-nudge')
   })
 
   return row

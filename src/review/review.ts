@@ -1,5 +1,5 @@
 import { finder } from '@medv/finder'
-import { findElement, isOurUi, mountUi, removeUi } from './ui'
+import { findElement, isOurUi, isShown, mountUi, removeUi } from './ui'
 import {
   mountHighlight,
   showHighlight,
@@ -600,7 +600,8 @@ function openCommentReader(comment: ReviewComment): void {
   closePopup()
 
   const found = foundTargets(comment)
-  showHighlight(found)
+  // Outlining an element in a closed popup would draw a box round nothing.
+  showHighlight(found.filter((t) => isShown(t.el)))
 
   const box = document.createElement('div')
   box.className = 'sr-popup sr-popup-read'
@@ -644,16 +645,36 @@ function openCommentReader(comment: ReviewComment): void {
   // Anchor the reader to the element the comment is about, falling back to the
   // middle of the screen when that element is gone.
   const rect = found[0]?.el.getBoundingClientRect()
+  const stopPlacing = keepNear(
+    box,
+    rect ? rect.left : window.innerWidth / 2,
+    rect ? rect.top : window.innerHeight / 3,
+  )
+  const stopWatching = closeWhenUnseen(comment)
   popup = {
     el: box,
     commentId: comment.id,
     hasDraft: () => false,
-    stopPlacing: keepNear(
-      box,
-      rect ? rect.left : window.innerWidth / 2,
-      rect ? rect.top : window.innerHeight / 3,
-    ),
+    stopPlacing: () => {
+      stopPlacing()
+      stopWatching()
+    },
   }
+}
+
+/**
+ * Closes a comment's reader once its elements go out of sight: the site's
+ * popup they were in has been closed, say. Left open, the reader would be
+ * talking about something no longer there. A reader opened on an element
+ * that was never in sight stays open, since that is what was asked for.
+ */
+function closeWhenUnseen(comment: ReviewComment): () => void {
+  const seen = () => foundTargets(comment).some((t) => isShown(t.el))
+  if (!seen()) return () => {}
+  const timer = setInterval(() => {
+    if (popup?.commentId === comment.id && !seen()) closePopup()
+  }, 500)
+  return () => clearInterval(timer)
 }
 
 /**

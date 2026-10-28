@@ -120,6 +120,12 @@ If an element can't be found any more, its comment stays in the panel tagged
 **ELEMENT NOT FOUND** rather than disappearing — and picks up again if the
 element comes back.
 
+A pin only shows while its element can be seen. Comment on a button inside a
+site's popup, close the popup, and the pin goes with it, back when the popup
+reopens; open a popup over pinned parts of the page and their pins step
+aside. The panel tags such a comment **HIDDEN RIGHT NOW**, meaning it's there
+but inside something closed, and its reader closes if the popup does.
+
 ### Comments across a site
 
 Every page of a site shares one list. The panel shows this page's comments

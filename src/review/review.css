@@ -415,6 +415,14 @@
   box-shadow: 0 2px 6px rgb(15 20 35 / 35%);
   pointer-events: auto;
   cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+/* Its element is there but can't be seen: in a closed popup, or under one. */
+.sr-pin[data-unseen],
+.sr-pin[data-status="resolved"][data-unseen] {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .sr-pin:hover {
@@ -597,6 +605,24 @@
 
 .sr-row-missing {
   cursor: default;
+}
+
+/* There, but in something closed: a quieter tag than a lost element. */
+.sr-row-unseen .sr-row-missing-tag {
+  background: #eceef2;
+  color: #5b6372;
+  cursor: help;
+}
+
+/* Clicked with nothing to scroll to: the tag says why. */
+.sr-row-missing-nudge {
+  animation: sr-nudge 0.3s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sr-row-missing-nudge {
+    animation: none;
+  }
 }
 
 /* --- comments grouped by page ---------------------------------------------- */
