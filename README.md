@@ -127,6 +127,12 @@ width, growing as tall as you left it only when there's that much to read.
 **Expand** opens a bigger view that stays big as you go; the arrows at the
 bottom, or **←** and **→**, step through the page's comments in number order.
 
+**Edit** in the reader rewords a comment without losing its number, pin or
+screenshot: the note itself, the clarified requirement, and **Done when**,
+what someone checks to call it fixed. The wording it was first left in is
+kept, a click away under **Edited**, so the reviewer's own words are never
+lost to a tidy-up. `Ctrl`/`Cmd` + `Enter` saves, `Esc` goes back to reading.
+
 A pin only shows while its element can be seen. Comment on a button inside a
 site's popup, close the popup, and the pin goes with it, back when the popup
 reopens; open a popup over pinned parts of the page and their pins step
@@ -363,6 +369,7 @@ about each save and redraw.
 | [`screenshots.ts`](src/review/screenshots.ts) | Taking, keeping and showing screenshots |
 | [`dock.ts`](src/review/dock.ts) | Which corner the pill and panel sit in, and moving them |
 | [`reader.ts`](src/review/reader.ts) | Where a comment opens beside its element, and its size |
+| [`edit.ts`](src/review/edit.ts) | Rewording a saved comment, keeping how it was first put |
 | [`text.ts`](src/review/text.ts) | Reading visible text off the page |
 | [`clarify.ts`](src/review/clarify.ts) · [`clarify-ui.ts`](src/review/clarify-ui.ts) | The AI step |
 | [`ui.ts`](src/review/ui.ts) | Putting the tool on the page, finding elements |
@@ -446,7 +453,9 @@ and `context` are the first one's, the element clicked. One saved in the
 extension also has `screenshot`, the id of its picture in the browser's
 IndexedDB (`screen-review:screenshots`). The picture lives there rather than
 in `localStorage`, which a few dozen of them would fill, and isn't part of
-Copy JSON. Full reasoning in [docs/captured-context.md](docs/captured-context.md).
+Copy JSON. An edited comment has `original`, its `comment` and `clarified` as
+first left, and `editedAt`; `acceptance` is the **Done when** line, when
+someone wrote one. Full reasoning in [docs/captured-context.md](docs/captured-context.md).
 
 ## The AI step
 

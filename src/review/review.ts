@@ -30,6 +30,7 @@ import { mountPins } from './pins'
 import { dockPiece, mountDock, seeThrough } from './dock'
 import { findSimilar } from './similar'
 import { applySavedSize, placeReader } from './reader'
+import { buildCommentEditor, buildEditedNote, type CommentEditor } from './edit'
 import {
   buildScreenshot,
   canTakeScreenshots,
@@ -94,6 +95,8 @@ let popup: {
   hasDraft: () => boolean
   /** Stops keeping the box on screen. */
   stopPlacing: () => void
+  /** Handles Esc itself, short of closing, when it returns true. */
+  escape?: () => boolean
   /**
    * For a comment being written, which can be about several elements:
    * Shift+click adds one to it, or takes it off again. hint says what a
@@ -382,7 +385,9 @@ function onKeyDown(event: KeyboardEvent): void {
 
   if (event.key !== 'Escape') return
 
-  if (popup) closePopup()
+  if (popup?.escape?.()) {
+    // Handled; see the popup's escape.
+  } else if (popup) closePopup()
   else if (reviewMode) setReviewMode(false)
   else return
 
@@ -640,13 +645,16 @@ function openCommentReader(comment: ReviewComment): void {
     <div class="sr-popup-head">
       <span class="sr-popup-number"></span>
     </div>
-    <p class="sr-popup-text"></p>
+    <div class="sr-reader-body">
+      <p class="sr-popup-text"></p>
+    </div>
     <div class="sr-popup-actions">
       <div class="sr-reader-nav">
         <button type="button" class="sr-reader-step" data-step="-1" title="Previous comment (←)" aria-label="Previous comment">‹</button>
         <span class="sr-reader-position"></span>
         <button type="button" class="sr-reader-step" data-step="1" title="Next comment (→)" aria-label="Next comment">›</button>
       </div>
+      <button type="button" class="sr-reader-edit" title="Reword it, keeping its number, pin and screenshot">Edit</button>
       <button type="button" class="sr-reader-expand"></button>
       <button type="button" class="sr-cancel">Close</button>
     </div>
@@ -657,6 +665,7 @@ function openCommentReader(comment: ReviewComment): void {
   number.textContent = String(comment.id)
   number.after(buildTarget(commentTargets(comment)))
 
+  const body = box.querySelector('.sr-reader-body') as HTMLElement
   const text = box.querySelector('.sr-popup-text') as HTMLElement
   text.textContent = comment.comment
 
@@ -666,8 +675,20 @@ function openCommentReader(comment: ReviewComment): void {
     const clarified = document.createElement('p')
     clarified.className = 'sr-popup-clarified'
     clarified.textContent = comment.clarified
-    text.after(clarified)
+    body.append(clarified)
   }
+
+  if (comment.acceptance) {
+    const acceptance = document.createElement('p')
+    acceptance.className = 'sr-reader-acceptance'
+    const label = document.createElement('strong')
+    label.textContent = 'Done when: '
+    acceptance.append(label, comment.acceptance)
+    body.append(acceptance)
+  }
+
+  const edited = buildEditedNote(comment)
+  if (edited) body.append(edited)
 
   const actions = box.querySelector('.sr-popup-actions') as HTMLElement
   if (comment.screenshot) {
@@ -676,6 +697,33 @@ function openCommentReader(comment: ReviewComment): void {
 
   const closeButton = box.querySelector('.sr-cancel') as HTMLButtonElement
   closeButton.addEventListener('click', closePopup)
+
+  // Editing swaps the words and the buttons for a form, in the same reader:
+  // the element stays outlined and the screenshot stays in view.
+  let editor: CommentEditor | null = null
+  const stopEditing = () => {
+    editor?.el.remove()
+    editor = null
+    body.hidden = actions.hidden = false
+  }
+  const startEditing = () => {
+    if (editor) return
+    editor = buildCommentEditor(comment, {
+      onSaved: () => {
+        stopEditing()
+        const saved = getComments().find((c) => c.id === comment.id)
+        if (saved) openCommentReader(saved)
+      },
+      onCancel: stopEditing,
+    })
+    body.hidden = actions.hidden = true
+    body.after(editor.el)
+    editor.focus()
+  }
+  ;(box.querySelector('.sr-reader-edit') as HTMLButtonElement).addEventListener(
+    'click',
+    startEditing,
+  )
 
   // Working through a review means reading one comment after another, so
   // the reader steps through this page's comments in number order.
@@ -714,10 +762,16 @@ function openCommentReader(comment: ReviewComment): void {
   popup = {
     el: box,
     commentId: comment.id,
-    hasDraft: () => false,
+    hasDraft: () => editor?.hasChanges() ?? false,
     stopPlacing: () => {
       stopPlacing()
       stopWatching()
+    },
+    // Esc while editing goes back to reading, not out of the reader.
+    escape: () => {
+      if (!editor) return false
+      stopEditing()
+      return true
     },
   }
 }

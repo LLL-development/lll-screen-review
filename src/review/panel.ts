@@ -250,6 +250,11 @@ function buildRow(comment: ReviewComment): HTMLElement {
   time.className = 'sr-row-time'
   time.dateTime = comment.createdAt
   time.textContent = formatTime(comment.createdAt)
+  // Reworded since: the first wording is a hover away, and in its reader.
+  if (comment.original) {
+    time.textContent += ' · edited'
+    time.title = `First written as: ${comment.original.comment}`
+  }
 
   const resolve = document.createElement('button')
   resolve.type = 'button'

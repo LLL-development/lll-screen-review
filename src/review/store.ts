@@ -13,8 +13,9 @@
  * is per-browser and per-device, so nobody else can see what you wrote, and
  * clearing site data wipes it. A server comes later; this module is the seam
  * where it plugs in, because the rest of the tool only ever talks to
- * addComment / setStatus / removeComment / getComments / onChange. Swapping
- * the array for fetch() calls should not touch any UI code.
+ * addComment / editComment / setStatus / removeComment / getComments /
+ * onChange. Swapping the array for fetch() calls should not touch any UI
+ * code.
  */
 
 import type { ElementContext } from './context'
@@ -59,6 +60,29 @@ export type ReviewComment = {
    * browser extension.
    */
   screenshot?: string
+  /**
+   * What would count as done, written by hand before it goes out as a
+   * ticket. Absent when nobody has.
+   */
+  acceptance?: string
+  /**
+   * How it was first put, kept the first time it's edited, so whoever picks
+   * it up can still see what the reviewer actually said. Absent for a
+   * comment never edited.
+   */
+  original?: { comment: string; clarified?: string }
+  editedAt?: string
+  /**
+   * When it was last copied out for a ticket. Editing it afterwards won't
+   * change that ticket, and the reader says so.
+   */
+  copiedForTicketAt?: string
+}
+
+/** What editComment can change. An empty clarified or acceptance removes it. */
+export type CommentEdit = Pick<ReviewComment, 'comment'> & {
+  clarified: string
+  acceptance: string
 }
 
 /** Every element a comment is about, the one clicked first. */
@@ -120,6 +144,47 @@ export function setScreenshot(id: number, screenshot: string): boolean {
   entry.screenshot = screenshot
   notify()
   return true
+}
+
+/**
+ * Rewords a comment. Its number, pin and screenshot stay as they were, so
+ * fixing a note is never riskier than leaving it alone. The wording it had
+ * before its first edit is kept beside the new one.
+ */
+export function editComment(id: number, edit: CommentEdit): void {
+  load()
+  const entry = comments.find((c) => c.id === id)
+  if (!entry) return
+
+  const comment = edit.comment.trim()
+  const clarified = edit.clarified.trim()
+  const acceptance = edit.acceptance.trim()
+  // An empty comment would leave a pin saying nothing.
+  if (!comment) return
+
+  const reworded = comment !== entry.comment || clarified !== (entry.clarified ?? '')
+  if (reworded) {
+    entry.original ??= {
+      comment: entry.comment,
+      ...(entry.clarified ? { clarified: entry.clarified } : {}),
+    }
+    entry.editedAt = new Date().toISOString()
+  }
+
+  entry.comment = comment
+  if (clarified) entry.clarified = clarified
+  else delete entry.clarified
+  if (acceptance) entry.acceptance = acceptance
+  else delete entry.acceptance
+  notify()
+}
+
+/** Records that these comments were just copied out for tickets. */
+export function markCopiedForTicket(ids: readonly number[]): void {
+  load()
+  const at = new Date().toISOString()
+  for (const entry of comments) if (ids.includes(entry.id)) entry.copiedForTicketAt = at
+  notify()
 }
 
 export function removeComment(id: number): void {
@@ -384,6 +449,28 @@ function toComment(value: unknown): ReviewComment | null {
     ...(typeof raw.screenshot === 'string' && raw.screenshot
       ? { screenshot: raw.screenshot }
       : {}),
+    ...(typeof raw.acceptance === 'string' && raw.acceptance
+      ? { acceptance: raw.acceptance }
+      : {}),
+    ...toOriginal(raw.original),
+    ...(isDate(raw.editedAt) ? { editedAt: raw.editedAt } : {}),
+    ...(isDate(raw.copiedForTicketAt) ? { copiedForTicketAt: raw.copiedForTicketAt } : {}),
+  }
+}
+
+function isDate(value: unknown): value is string {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value))
+}
+
+function toOriginal(value: unknown): Pick<ReviewComment, 'original'> {
+  if (typeof value !== 'object' || value === null) return {}
+  const raw = value as Record<string, unknown>
+  if (typeof raw.comment !== 'string') return {}
+  return {
+    original: {
+      comment: raw.comment,
+      ...(typeof raw.clarified === 'string' && raw.clarified ? { clarified: raw.clarified } : {}),
+    },
   }
 }
 

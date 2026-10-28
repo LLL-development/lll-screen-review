@@ -495,6 +495,7 @@
 }
 
 .sr-popup .sr-reader-step,
+.sr-popup .sr-reader-edit,
 .sr-popup .sr-reader-expand {
   border: 1px solid #d4d8e0;
   background: #fff;
@@ -518,6 +519,118 @@
   color: #7a828f;
   font-size: 12px;
   text-align: center;
+}
+
+.sr-reader-body[hidden],
+.sr-popup-read .sr-popup-actions[hidden] {
+  display: none;
+}
+
+.sr-reader-acceptance {
+  margin: 8px 0 0;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* --- editing a saved comment ----------------------------------------------- */
+
+.sr-edited {
+  margin-top: 8px;
+}
+
+.sr-popup .sr-edited-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #7a828f;
+  font-size: 11px;
+}
+
+.sr-popup .sr-edited-toggle:hover {
+  color: #2f5bd7;
+  text-decoration: underline;
+}
+
+.sr-edited-original {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: #f5f6f8;
+  color: #5b6372;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sr-edited-original p {
+  margin: 0;
+}
+
+.sr-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sr-editor-warning {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: #fff4e0;
+  color: #8a5300;
+  font-size: 12px;
+}
+
+.sr-editor-warning[hidden] {
+  display: none;
+}
+
+.sr-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #3a4252;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sr-editor-field em {
+  color: #9aa1ad;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.sr-editor textarea {
+  width: 100%;
+  padding: 7px;
+  border: 1px solid #d4d8e0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.sr-editor textarea:focus {
+  border-color: #2f5bd7;
+  outline: none;
+}
+
+.sr-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sr-editor-actions .sr-popup-hint {
+  margin: 0 auto 0 0;
+}
+
+.sr-popup .sr-save:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* Words first: the picture is a preview here, full size a click away. */
