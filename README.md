@@ -90,6 +90,7 @@ template repeats. Every element gets a pin with the comment's number.
 | Hover a panel row | Outline that comment's elements |
 | Click a panel row | Scroll to that element, or go to its page |
 | Drag the pill, or the panel's header | Move them both to another corner |
+| **←** / **→** while reading a comment | The previous or next comment on the page |
 
 Saving drops a numbered pin on the element. Pins stay on their element as the
 page scrolls, animates or re-renders, survive a refresh, and grey out when you
@@ -119,6 +120,12 @@ a chat button in the corner, say, and come back as you reach for them.
 If an element can't be found any more, its comment stays in the panel tagged
 **ELEMENT NOT FOUND** rather than disappearing — and picks up again if the
 element comes back.
+
+A comment opens beside its element rather than on top of it. Drag the
+reader's bottom-right corner to make it bigger and the next one opens the same
+width, growing as tall as you left it only when there's that much to read.
+**Expand** opens a bigger view that stays big as you go; the arrows at the
+bottom, or **←** and **→**, step through the page's comments in number order.
 
 A pin only shows while its element can be seen. Comment on a button inside a
 site's popup, close the popup, and the pin goes with it, back when the popup
@@ -355,6 +362,7 @@ about each save and redraw.
 | [`similar.ts`](src/review/similar.ts) | Finding the other elements built like one |
 | [`screenshots.ts`](src/review/screenshots.ts) | Taking, keeping and showing screenshots |
 | [`dock.ts`](src/review/dock.ts) | Which corner the pill and panel sit in, and moving them |
+| [`reader.ts`](src/review/reader.ts) | Where a comment opens beside its element, and its size |
 | [`text.ts`](src/review/text.ts) | Reading visible text off the page |
 | [`clarify.ts`](src/review/clarify.ts) · [`clarify-ui.ts`](src/review/clarify-ui.ts) | The AI step |
 | [`ui.ts`](src/review/ui.ts) | Putting the tool on the page, finding elements |

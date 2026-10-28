@@ -29,6 +29,7 @@ import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
 import { dockPiece, mountDock, seeThrough } from './dock'
 import { findSimilar } from './similar'
+import { applySavedSize, placeReader } from './reader'
 import {
   buildScreenshot,
   canTakeScreenshots,
@@ -80,6 +81,9 @@ const PRESS_EVENTS = [
 ] as const
 
 let reviewMode = false
+
+/** Whether the comment reader is in its bigger view; kept until changed. */
+let readerExpanded = false
 
 /** The open comment box or comment reader, or null when neither is open. */
 let popup: {
@@ -364,7 +368,19 @@ function onClick(event: MouseEvent): void {
 function onKeyDown(event: KeyboardEvent): void {
   // With an input method (Japanese, Chinese…), Esc cancels the characters
   // being composed. The comment is not what it means to throw away.
-  if (event.key !== 'Escape' || event.isComposing) return
+  if (event.isComposing) return
+
+  // ← and → step through comments while one is being read. Not with a
+  // modifier: Alt+← is the browser's Back.
+  const arrow = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
+  if (arrow && popup?.commentId != null && !hasModifier(event) && !isTyping(event)) {
+    stepReader(arrow)
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    return
+  }
+
+  if (event.key !== 'Escape') return
 
   if (popup) closePopup()
   else if (reviewMode) setReviewMode(false)
@@ -372,6 +388,20 @@ function onKeyDown(event: KeyboardEvent): void {
 
   // Ours: the page shouldn't also close its own menu or dialog on it.
   event.stopImmediatePropagation()
+}
+
+function hasModifier(event: KeyboardEvent): boolean {
+  return event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
+}
+
+/** Keys typed into a text box, ours or the page's, are text. */
+function isTyping(event: KeyboardEvent): boolean {
+  // The real target: from inside the tool, event.target is just its host.
+  const target = event.composedPath()[0]
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  )
 }
 
 // --- the comment box --------------------------------------------------------
@@ -601,7 +631,8 @@ function openCommentReader(comment: ReviewComment): void {
 
   const found = foundTargets(comment)
   // Outlining an element in a closed popup would draw a box round nothing.
-  showHighlight(found.filter((t) => isShown(t.el)))
+  const seen = found.filter((t) => isShown(t.el))
+  showHighlight(seen)
 
   const box = document.createElement('div')
   box.className = 'sr-popup sr-popup-read'
@@ -611,6 +642,12 @@ function openCommentReader(comment: ReviewComment): void {
     </div>
     <p class="sr-popup-text"></p>
     <div class="sr-popup-actions">
+      <div class="sr-reader-nav">
+        <button type="button" class="sr-reader-step" data-step="-1" title="Previous comment (←)" aria-label="Previous comment">‹</button>
+        <span class="sr-reader-position"></span>
+        <button type="button" class="sr-reader-step" data-step="1" title="Next comment (→)" aria-label="Next comment">›</button>
+      </div>
+      <button type="button" class="sr-reader-expand"></button>
       <button type="button" class="sr-cancel">Close</button>
     </div>
   `
@@ -640,16 +677,39 @@ function openCommentReader(comment: ReviewComment): void {
   const closeButton = box.querySelector('.sr-cancel') as HTMLButtonElement
   closeButton.addEventListener('click', closePopup)
 
+  // Working through a review means reading one comment after another, so
+  // the reader steps through this page's comments in number order.
+  const onPage = commentsInOrder()
+  const at = onPage.findIndex((c) => c.id === comment.id)
+  const nav = box.querySelector('.sr-reader-nav') as HTMLElement
+  nav.hidden = onPage.length < 2 || at === -1
+  ;(box.querySelector('.sr-reader-position') as HTMLElement).textContent =
+    `${at + 1} of ${onPage.length}`
+  for (const step of box.querySelectorAll<HTMLButtonElement>('.sr-reader-step')) {
+    const direction = Number(step.dataset.step)
+    step.disabled = !onPage[at + direction]
+    step.addEventListener('click', () => stepReader(direction))
+  }
+
+  // Expanded stays expanded from one comment to the next.
+  const expand = box.querySelector('.sr-reader-expand') as HTMLButtonElement
+  const syncExpanded = () => {
+    box.classList.toggle('sr-popup-expanded', readerExpanded)
+    expand.textContent = readerExpanded ? 'Shrink' : 'Expand'
+    expand.title = readerExpanded ? 'Back to the small reader' : 'Read it in a bigger view'
+  }
+  syncExpanded()
+  expand.addEventListener('click', () => {
+    readerExpanded = !readerExpanded
+    syncExpanded()
+  })
+
+  applySavedSize(box)
   mountUi(box)
 
-  // Anchor the reader to the element the comment is about, falling back to the
-  // middle of the screen when that element is gone.
-  const rect = found[0]?.el.getBoundingClientRect()
-  const stopPlacing = keepNear(
-    box,
-    rect ? rect.left : window.innerWidth / 2,
-    rect ? rect.top : window.innerHeight / 3,
-  )
+  // Beside the element the comment is about, or in the middle of the screen
+  // when that element is gone or can't be seen.
+  const stopPlacing = placeReader(box, seen[0]?.el.getBoundingClientRect() ?? null)
   const stopWatching = closeWhenUnseen(comment)
   popup = {
     el: box,
@@ -660,6 +720,29 @@ function openCommentReader(comment: ReviewComment): void {
       stopWatching()
     },
   }
+}
+
+/** This page's comments, in the order of their numbers. */
+function commentsInOrder(): ReviewComment[] {
+  return getComments()
+    .filter(isOnThisPage)
+    .sort((a, b) => a.id - b.id)
+}
+
+/**
+ * Moves the open reader on to the next comment on the page (1) or back to
+ * the previous one (-1), scrolling its element into view first.
+ */
+function stepReader(direction: number): void {
+  const id = popup?.commentId
+  if (id == null) return
+  const onPage = commentsInOrder()
+  const next = onPage[onPage.findIndex((c) => c.id === id) + direction]
+  if (!next) return
+  foundTargets(next)
+    .find((t) => isShown(t.el))
+    ?.el.scrollIntoView({ block: 'center' })
+  openCommentReader(next)
 }
 
 /**

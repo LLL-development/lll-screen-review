@@ -466,6 +466,90 @@
   word-break: break-word;
 }
 
+/* Wider than the comment box, and resizable from its bottom-right corner. */
+.sr-popup-read {
+  width: 420px;
+  min-width: 280px;
+  min-height: 140px;
+  resize: both;
+}
+
+/* Stays in reach however far a long comment has been scrolled. */
+.sr-popup-read .sr-popup-actions {
+  position: sticky;
+  bottom: -14px;
+  align-items: center;
+  padding: 8px 0 2px;
+  background: #fff;
+}
+
+.sr-reader-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.sr-reader-nav[hidden] {
+  display: none;
+}
+
+.sr-popup .sr-reader-step,
+.sr-popup .sr-reader-expand {
+  border: 1px solid #d4d8e0;
+  background: #fff;
+  color: #3a4252;
+}
+
+.sr-popup .sr-reader-step {
+  width: 28px;
+  padding: 2px 0;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.sr-popup .sr-reader-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sr-reader-position {
+  min-width: 44px;
+  color: #7a828f;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Words first: the picture is a preview here, full size a click away. */
+.sr-popup-read .sr-shot-open canvas {
+  max-height: 200px;
+  object-fit: contain;
+}
+
+/* The bigger view: across the middle of the window, as tall as it needs. */
+.sr-popup-expanded {
+  top: 6vh !important;
+  left: calc((100vw - min(880px, 100vw - 48px)) / 2) !important;
+  width: min(880px, calc(100vw - 48px)) !important;
+  height: auto !important;
+  max-height: 88vh !important;
+  padding: 20px 24px;
+  resize: none;
+}
+
+.sr-popup-expanded .sr-popup-actions {
+  bottom: -20px;
+}
+
+.sr-popup-expanded .sr-popup-text,
+.sr-popup-expanded .sr-popup-clarified {
+  font-size: 15px;
+}
+
+.sr-popup-expanded .sr-shot-open canvas {
+  max-height: none;
+}
+
 /* --- panel: collapsing, numbering and resolved state ---------------------- */
 
 .sr-panel-collapse {
@@ -958,6 +1042,8 @@
 .sr-shot-full {
   position: fixed;
   inset: 0;
+  /* Above the reader's own buttons, which stay put as it scrolls. */
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
