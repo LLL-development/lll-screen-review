@@ -92,11 +92,91 @@
           <button type="submit" class="primary">Send invite</button>
         </form>
       </section>
+
+      <section class="panel">
+        <h2>Plan and exports</h2>
+        <p class="panel-note">
+          Things that only show after a click, to try commenting inside: a menu
+          that closes on any click outside it, and a dialog with tabs.
+        </p>
+        <div class="toolbar">
+          <div class="menu">
+            <button type="button" class="menu-button" aria-haspopup="menu"
+              aria-expanded="false" aria-controls="export-menu">Export</button>
+            <ul class="menu-list" id="export-menu" role="menu" hidden>
+              <li role="none"><button type="button" role="menuitem">Download CSV</button></li>
+              <li role="none"><button type="button" role="menuitem">Download PDF</button></li>
+              <li role="none"><button type="button" role="menuitem">Email a copy</button></li>
+            </ul>
+          </div>
+          <button type="button" class="open-plan">Change plan…</button>
+        </div>
+      </section>
     </main>
 
     <footer class="site-footer">
       <small>Acme Inc. — internal preview</small>
     </footer>
+
+    <!-- Hand-made, as plenty of sites' popups are: nothing on the button that
+         opens it says so. -->
+    <div class="modal-backdrop" hidden>
+      <div class="modal" role="dialog" aria-labelledby="plan-title">
+        <button type="button" class="modal-close" aria-label="Close">×</button>
+        <h2 id="plan-title">Change plan</h2>
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" id="tab-billing"
+            aria-controls="panel-billing" aria-selected="true">Billing</button>
+          <button type="button" role="tab" id="tab-seats"
+            aria-controls="panel-seats" aria-selected="false">Seats</button>
+        </div>
+        <div class="tab-panel" role="tabpanel" id="panel-billing" aria-labelledby="tab-billing">
+          <p class="price">$49 a month, billed yearly</p>
+          <button type="button" class="primary">Upgrade to Pro</button>
+        </div>
+        <div class="tab-panel" role="tabpanel" id="panel-seats" aria-labelledby="tab-seats" hidden>
+          <p class="price">12 of 20 seats used</p>
+          <button type="button" class="primary">Add seats</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      // The page's own popups. Nothing here knows about the review tool.
+      const menu = document.getElementById('export-menu')
+      const menuButton = document.querySelector('.menu-button')
+      const showMenu = (open) => {
+        menu.hidden = !open
+        menuButton.setAttribute('aria-expanded', String(open))
+      }
+      menuButton.addEventListener('click', () => showMenu(menu.hidden))
+      document.addEventListener('click', (event) => {
+        if (!event.target.closest('.menu')) showMenu(false)
+      })
+
+      const plan = document.querySelector('.modal-backdrop')
+      const tabs = plan.querySelectorAll('[role="tab"]')
+      const pickTab = (picked) => {
+        for (const tab of tabs) {
+          tab.setAttribute('aria-selected', String(tab === picked))
+          document.getElementById(tab.getAttribute('aria-controls')).hidden = tab !== picked
+        }
+      }
+      for (const tab of tabs) tab.addEventListener('click', () => pickTab(tab))
+      // Always opens on its first tab.
+      document.querySelector('.open-plan').addEventListener('click', () => {
+        pickTab(tabs[0])
+        plan.hidden = false
+      })
+      const closePlan = () => (plan.hidden = true)
+      plan.querySelector('.modal-close').addEventListener('click', closePlan)
+      plan.addEventListener('click', (event) => {
+        if (event.target === plan) closePlan()
+      })
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closePlan()
+      })
+    </script>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
