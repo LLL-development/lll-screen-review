@@ -51,15 +51,20 @@ const KEPT_IN = [
 ]
 
 /**
- * Focus moving into the tool is stopped sooner, as it passes the window on
- * the way down. A dialog that keeps the focus inside itself often listens on
- * the way down too, and would pull it straight back out of the comment box.
- * Nothing in the tool listens for these itself.
+ * Focus is kept quieter still, stopped as it passes the window on the way
+ * down: focus moving within the tool, and the page's own element losing it
+ * to the tool. As far as the page can tell, focus never left it. A dialog or
+ * menu that keeps the focus inside itself listens for either, and would
+ * pull it straight back out of the comment box, or close. Nothing in the
+ * tool listens for these itself.
  */
 const FOCUS_EVENTS = ['focusin', 'focusout', 'focus', 'blur']
 
 function keepFocusIn(event: Event): void {
-  if (event.target instanceof Element && isOurUi(event.target)) event.stopImmediatePropagation()
+  const ours = (node: EventTarget | null) => node instanceof Element && isOurUi(node)
+  const leaving = event.type === 'focusout' || event.type === 'blur'
+  const to = event instanceof FocusEvent ? event.relatedTarget : null
+  if (ours(event.target) || (leaving && ours(to))) event.stopImmediatePropagation()
 }
 
 /** Registers something to undo when the tool is taken off the page. */
