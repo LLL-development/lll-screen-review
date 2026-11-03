@@ -1,5 +1,5 @@
-import { finder } from '@medv/finder'
 import { findElement, isOurUi, isShown, mountUi, removeUi } from './ui'
+import { selectorFor } from './selector'
 import {
   mountHighlight,
   showHighlight,
@@ -1022,44 +1022,6 @@ function isInView(el: Element): boolean {
     rect.top < window.innerHeight &&
     rect.left < window.innerWidth
   )
-}
-
-/**
- * A unique CSS selector for the element, e.g. `#page-title` or
- * `.card:nth-of-type(2) > .stat`.
- *
- * On a big page finder can spend up to a second looking for a short one.
- * That's once per click, never while hovering: the label shows the
- * element's name instead.
- */
-function selectorFor(el: Element): string {
-  try {
-    return finder(el, { timeoutMs: 1000 })
-  } catch {
-    // finder gives up on odd nodes (svg internals, detached elements, ...).
-    return pathTo(el)
-  }
-}
-
-/**
- * The element's exact position from the top of the document, e.g.
- * `html > body:nth-child(2) > div:nth-child(3)`. Brittle — any change above
- * it breaks it — but it can only ever match this one element. A bare tag name
- * like "div" would pin the comment to the first div on the page instead.
- */
-function pathTo(el: Element): string {
-  const steps: string[] = []
-  for (
-    let node: Element | null = el;
-    node && node !== document.documentElement;
-    node = node.parentElement
-  ) {
-    const index = node.parentElement
-      ? Array.prototype.indexOf.call(node.parentElement.children, node) + 1
-      : 1
-    steps.unshift(`${CSS.escape(node.localName)}:nth-child(${index})`)
-  }
-  return ['html', ...steps].join(' > ')
 }
 
 /**

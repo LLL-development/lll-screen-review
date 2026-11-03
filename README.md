@@ -381,6 +381,7 @@ about each save and redraw.
 | [`highlight.ts`](src/review/highlight.ts) | The blue outline |
 | [`context.ts`](src/review/context.ts) | What was on screen |
 | [`describe.ts`](src/review/describe.ts) | The element's name in plain words |
+| [`selector.ts`](src/review/selector.ts) | The CSS selector that finds an element again |
 | [`similar.ts`](src/review/similar.ts) | Finding the other elements built like one |
 | [`screenshots.ts`](src/review/screenshots.ts) | Taking, keeping and showing screenshots |
 | [`dock.ts`](src/review/dock.ts) | Which corner the pill and panel sit in, and moving them |
@@ -595,7 +596,10 @@ opening a new window isn't caught anywhere.
 unique selector for the page as it was. Restructure the page and they stop
 matching. Positional ones like `:nth-child(2)` are the weak case: insert
 something above and the comment quietly points at a different element rather
-than failing visibly.
+than failing visibly. Classes and attributes that only say how an element is
+right now, like `show`, `active` or `data-state="open"`, are left out of them
+([`selector.ts`](src/review/selector.ts)), so a comment left in an open menu
+still finds its element once the menu has closed.
 
 **A dropdown's options can't be commented on.** An open `<select>`'s `<option>`s
 are drawn by the operating system rather than laid out in the page, and review
