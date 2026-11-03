@@ -430,6 +430,52 @@
   transform: scale(1.12);
 }
 
+/* On what opens a closed popup with comments inside (see pins.ts): hollow,
+   and centred on the element's top-right corner, clear of a pin of its own. */
+.sr-pin.sr-pin-door {
+  width: auto;
+  min-width: 22px;
+  margin: -11px 0 0;
+  padding: 0 6px;
+  translate: -50% 0;
+  border: 2px dashed #2f5bd7;
+  border-radius: 11px;
+  background: #fff;
+  color: #2f5bd7;
+  white-space: nowrap;
+}
+
+.sr-pin.sr-pin-door:hover {
+  border-style: solid;
+  background: #eef3ff;
+}
+
+.sr-pin.sr-pin-door[data-status="resolved"] {
+  border-color: #aeb5c0;
+  background: #fff;
+  color: #8b93a1;
+}
+
+/* A pulse round the outline, after jumping to it; see flashHighlight. */
+.sr-flash .sr-highlight {
+  animation: sr-flash 0.9s ease-out;
+}
+
+@keyframes sr-flash {
+  from {
+    box-shadow: 0 0 0 0 rgb(47 91 215 / 55%);
+  }
+  to {
+    box-shadow: 0 0 0 16px rgb(47 91 215 / 0%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sr-flash .sr-highlight {
+    animation: none;
+  }
+}
+
 /* --- reading a saved comment ---------------------------------------------- */
 
 .sr-popup-head {
@@ -531,6 +577,40 @@
   font-size: 13px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* The way into the popup it's in, for whoever comes to it later. */
+.sr-reader-way {
+  margin: 8px 0 0;
+  color: #5c6472;
+  font-size: 12px;
+}
+
+/* Its element can't be seen: where it's got to, and a way to bring it back. */
+.sr-reader-where {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f2f4f8;
+  color: #3a4252;
+  font-size: 12px;
+}
+
+.sr-reader-where p {
+  flex: 1;
+  margin: 0;
+}
+
+.sr-popup .sr-reader-open {
+  flex: none;
+  padding: 4px 10px;
+  border: 0;
+  background: #2f5bd7;
+  color: #fff;
+  font-size: 12px;
 }
 
 /* --- editing a saved comment ----------------------------------------------- */
@@ -809,6 +889,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 /* A flex child ignores the hidden attribute unless told otherwise. */
@@ -816,26 +897,10 @@
   display: none;
 }
 
-.sr-row-missing {
-  cursor: default;
-}
-
 /* There, but in something closed: a quieter tag than a lost element. */
 .sr-row-unseen .sr-row-missing-tag {
   background: #eceef2;
   color: #5b6372;
-  cursor: help;
-}
-
-/* Clicked with nothing to scroll to: the tag says why. */
-.sr-row-missing-nudge {
-  animation: sr-nudge 0.3s ease-in-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sr-row-missing-nudge {
-    animation: none;
-  }
 }
 
 /* --- comments grouped by page ---------------------------------------------- */

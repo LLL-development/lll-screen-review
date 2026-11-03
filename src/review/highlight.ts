@@ -40,6 +40,8 @@ let frame = 0
 
 export function mountHighlight(): void {
   mountUi(layer)
+  // Once is enough: left on, a box shown again later would pulse again.
+  layer.addEventListener('animationend', () => layer.classList.remove('sr-flash'))
   onRemoveUi(() => {
     cancelAnimationFrame(frame)
     frame = 0
@@ -78,6 +80,17 @@ export function showCandidate(target: HighlightTarget | null): void {
   if (target?.el === candidate?.el && target?.text === candidate?.text) return
   candidate = target
   update()
+}
+
+/**
+ * A pulse round whatever is outlined, so the eye finds it after the tool has
+ * jumped there: scrolled to it, or opened the popup it's in.
+ */
+export function flashHighlight(): void {
+  // Taking the class off and reading a size in between restarts the pulse.
+  layer.classList.remove('sr-flash')
+  void layer.offsetWidth
+  layer.classList.add('sr-flash')
 }
 
 /** The element the tool is pointing at, if any; previews don't count. */

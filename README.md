@@ -87,8 +87,8 @@ template repeats. Every element gets a pin with the comment's number.
 | `Esc` | Close the box, or leave review mode |
 | `Shift` + click | Add an element to the comment being written, or take it back off |
 | Click a pin | Read that comment back, review mode on or off |
-| Hover a panel row | Outline that comment's elements |
-| Click a panel row | Scroll to that element, or go to its page |
+| Hover a panel row | Outline that comment's elements, or what opens the popup they're in |
+| Click a panel row | Go to that comment, opening the popup it's in, or go to its page |
 | Drag the pill, or the panel's header | Move them both to another corner |
 | **←** / **→** while reading a comment | The previous or next comment on the page |
 
@@ -137,7 +137,33 @@ A pin only shows while its element can be seen. Comment on a button inside a
 site's popup, close the popup, and the pin goes with it, back when the popup
 reopens; open a popup over pinned parts of the page and their pins step
 aside. The panel tags such a comment **HIDDEN RIGHT NOW**, meaning it's there
-but inside something closed, and its reader closes if the popup does.
+but inside something closed, or **COVERED RIGHT NOW** when something open is
+on top of it, and its reader closes if the popup does.
+
+### Comments inside popups
+
+To comment inside a site's menu or dialog, open it with review mode off, then
+switch review mode on and click what's inside. Pressing the pill or typing in
+the comment box doesn't count as a click outside the site's menu, so it stays
+open while you write.
+
+As the comment is made, the tool works out what opens the part of the page
+it's in, and keeps that with it as its way in: *Button “Change plan…”, then
+Tab “Seats”*. It reads what the page says first (`aria-controls`,
+`popovertarget`, a menu labelled by its button, a `<details>` and its
+`<summary>`, Bootstrap's `data-bs-target`), and otherwise goes by your own
+presses: it remembers the last few clicks made outside review mode, and which
+of them made the comment's surroundings appear. When several buttons open the
+same dialog, the one you pressed is the way in.
+
+Clicking the comment in the panel, or stepping to it with the arrows, then
+presses that way in again, popup first, then tab, and opens the comment beside
+its element. On the page, what opens the popup carries a hollow pin with the
+numbers of the comments inside, so a closed dialog with feedback in it doesn't
+look like one without; click it to go in. If the way in leads nowhere, or
+something else is open on top of it, the comment opens anyway and says why.
+Its ticket and its reader say **To see it** with the same steps, so whoever
+picks it up isn't left guessing what to click.
 
 ### Comments across a site
 
@@ -157,7 +183,8 @@ before leaving the page.
 
 **Tickets** in the panel lays out every comment on the site as the ticket it
 would become: the requirement (the clarified wording, or the note if nobody
-clarified it), the note it came from, **Done when**, and the element. It
+clarified it), the note it came from, **Done when**, the element, and, for
+one inside a popup, **To see it**, the clicks that open it. It
 flags what would leave a developer guessing, like *No clarified requirement*,
 *Very short* or *No "done when"*, and **Edit** fixes a comment right there.
 **Markdown** shows exactly what will be copied.
@@ -386,6 +413,7 @@ about each save and redraw.
 | [`screenshots.ts`](src/review/screenshots.ts) | Taking, keeping and showing screenshots |
 | [`dock.ts`](src/review/dock.ts) | Which corner the pill and panel sit in, and moving them |
 | [`reader.ts`](src/review/reader.ts) | Where a comment opens beside its element, and its size |
+| [`reveal.ts`](src/review/reveal.ts) | What opens the popup a comment is in, and opening it again |
 | [`edit.ts`](src/review/edit.ts) | Rewording a saved comment, keeping how it was first put |
 | [`tickets.ts`](src/review/tickets.ts) | Checking comments, then copying them out as tickets |
 | [`clipboard.ts`](src/review/clipboard.ts) | Copying text, with a fallback for when the browser says no |
@@ -472,7 +500,9 @@ actually visible, and `nearbyText` climbs the ancestors until it finds one
 saying more than the element itself. `name` is what the panel and comment box
 show: *Text “$12,480” in Revenue*. A comment on several elements also has
 `others`, the selector and name of each element after the first; `selector`
-and `context` are the first one's, the element clicked. One saved in the
+and `context` are the first one's, the element clicked. One inside a popup or
+a tab has `openWith`, the selector and name of each thing to press to get
+there, in order. One saved in the
 extension also has `screenshot`, the id of its picture in the browser's
 IndexedDB (`screen-review:screenshots`). The picture lives there rather than
 in `localStorage`, which a few dozen of them would fill, and isn't part of

@@ -4,8 +4,9 @@
  * It lists the whole site's comments: this page's first, then the ones left
  * on other pages. It redraws itself whenever the store changes. Hovering a
  * row for this page re-highlights the element that comment is about, and
- * clicking it scrolls there; clicking one for another page goes to that
- * page. Rows can be resolved, which mutes them here and mutes their pin.
+ * clicking it goes there and opens the comment, opening the popup it's in
+ * first if need be; clicking one for another page goes to that page. Rows
+ * can be resolved, which mutes them here and mutes their pin.
  */
 
 import {
@@ -20,9 +21,10 @@ import {
 } from './store'
 import { previewHighlight, endPreview, foundTargets } from './highlight'
 import { buildName, formatName } from './describe'
-import { isShown, mountUi, onRemoveUi } from './ui'
+import { isRendered, isShown, mountUi, onRemoveUi } from './ui'
 import { dockPiece } from './dock'
 import { copyText } from './clipboard'
+import { describeWayIn, doorOf } from './reveal'
 
 /** How often each row re-checks whether its element is still on the page. */
 const RECHECK_MS = 1000
@@ -49,12 +51,17 @@ let goTo: (comment: ReviewComment) => void = () => {}
 /** What the Tickets button does; supplied by review.ts. */
 let openTickets: () => void = () => {}
 
+/** What clicking a comment from this page does; supplied by review.ts. */
+let show: (comment: ReviewComment) => void = () => {}
+
 export function mountPanel(
   goToComment: (comment: ReviewComment) => void,
   openTicketReview: () => void,
+  showComment: (comment: ReviewComment) => void,
 ): void {
   goTo = goToComment
   openTickets = openTicketReview
+  show = showComment
   mountUi(panel)
   // Grabbed by its header, not its buttons; the list below scrolls.
   dockPiece(
@@ -316,40 +323,46 @@ function buildRow(comment: ReviewComment): HTMLElement {
    * Found but not seen is its own case: the element is in a popup or menu
    * that's closed right now, and opening it brings the pin back. Saying
    * "not found" there would send someone looking for a bug that isn't one.
+   * Nor is one missing whose way in is on the page: plenty of popups are
+   * only built as they open. And one drawn but not seen is covered, by a
+   * popup open on top of it.
    */
   const sync = () => {
     const found = foundTargets(comment)
     const seen = found.filter((t) => isShown(t.el))
-    const unseen = found.length > 0 && seen.length === 0
-    row.classList.toggle('sr-row-missing', found.length === 0)
-    row.classList.toggle('sr-row-unseen', unseen)
-    missing.hidden = found.length > 0 && !unseen
-    missing.textContent = unseen ? 'Hidden right now' : 'Element not found'
-    missing.title = unseen
-      ? 'It is on the page, but inside something closed, like a popup or a menu. Open it and the pin comes back.'
-      : ''
-    return seen
+    const door = seen.length > 0 ? null : doorOf(comment)
+    const lost = found.length === 0 && !door
+    const covered = seen.length === 0 && !door && found.some((t) => isRendered(t.el))
+    row.classList.toggle('sr-row-missing', lost)
+    row.classList.toggle('sr-row-unseen', seen.length === 0 && !lost)
+    missing.hidden = seen.length > 0
+    missing.textContent = lost ? 'Element not found' : covered ? 'Covered right now' : 'Hidden right now'
+    missing.title =
+      door && comment.openWith
+        ? `Inside something closed right now. Click the comment to open it: that clicks ${describeWayIn(comment.openWith.slice(door.index))} for you.`
+        : covered
+          ? 'Something open on the page is on top of it, like a popup. Close that and the pin comes back.'
+          : lost
+            ? ''
+            : 'It is on the page, but inside something closed, like a popup or a menu. Open it and the pin comes back.'
+    return { seen, door }
   }
 
   sync()
   rowChecks.push(sync)
 
   row.addEventListener('mouseenter', () => {
-    const seen = sync()
+    const { seen, door } = sync()
     if (seen.length > 0) previewHighlight(seen)
+    // Nothing of its own to point at: what opens it, then.
+    else if (door) previewHighlight([{ el: door.el, text: `Opens comment ${comment.id}` }])
   })
   row.addEventListener('mouseleave', () => endPreview())
+  // Even with nothing to scroll to: the reader says where it's got to. The
+  // preview gives way to the outline of whatever the reader opens on.
   row.addEventListener('click', () => {
-    const seen = sync()
-    if (seen.length > 0) {
-      seen[0].el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      return
-    }
-    // Nothing to scroll to: point at the tag that says why, rather than
-    // leaving the click to do nothing at all.
-    missing.classList.remove('sr-row-missing-nudge')
-    void missing.offsetWidth
-    missing.classList.add('sr-row-missing-nudge')
+    endPreview()
+    show(comment)
   })
 
   return row

@@ -217,6 +217,17 @@ export function isShown(el: Element, rect = el.getBoundingClientRect()): boolean
   return underAncestor && looksVisible(el)
 }
 
+/**
+ * Whether an element is drawn on the page at all, seen or not: it has a size
+ * and isn't faded out or hidden. One that's drawn but not shown is covered
+ * by something, a popup open on top of it; see isShown.
+ */
+export function isRendered(el: Element): boolean {
+  if (!el.isConnected) return false
+  const rect = el.getBoundingClientRect()
+  return (rect.width > 0 || rect.height > 0) && looksVisible(el)
+}
+
 /** Not faded out or hidden, by its own styles or a parent's. */
 function looksVisible(el: Element): boolean {
   // Every browser the extension runs in has it; the test page may not.

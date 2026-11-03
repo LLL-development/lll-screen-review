@@ -19,6 +19,7 @@ import { copyText } from './clipboard'
 import { formatName } from './describe'
 import { buildCommentEditor, type CommentEditor } from './edit'
 import { pageLabel } from './panel'
+import { describeWayIn } from './reveal'
 import { canTakeScreenshots } from './screenshots'
 import { commentTargets, getComments, markCopiedForTicket, type ReviewComment } from './store'
 import { mountUi } from './ui'
@@ -265,6 +266,7 @@ function buildPreview(comment: ReviewComment): HTMLElement {
       .map((t) => formatName(t.name))
       .join(', '),
   )
+  if (comment.openWith) row('To see it', `Click ${describeWayIn(comment.openWith)}`)
   return preview
 }
 
@@ -330,7 +332,8 @@ function ticketTitle(comment: ReviewComment): string {
 /**
  * One ticket, as the plan for Lorely lays it out (§11.1): the requirement,
  * the note it came from, what counts as done, and where on which page, with
- * enough of the element to find it again.
+ * enough of the element to find it again, and of the way to it when it's
+ * inside something that opens.
  */
 export function ticketMarkdown(comment: ReviewComment): string {
   const lines = [`## #${comment.id} ${ticketTitle(comment)}`, '', `**Requirement:** ${requirementOf(comment)}`]
@@ -343,6 +346,12 @@ export function ticketMarkdown(comment: ReviewComment): string {
   lines.push('', `- **Page:** ${comment.url}`)
   for (const target of commentTargets(comment)) {
     lines.push(`- **Element:** ${formatName(target.name)} (\`${target.selector}\`)`)
+  }
+  // Inside a popup or a tab: how to get there, or the developer has to guess.
+  // With selectors, as for the elements: an icon button may have no name.
+  if (comment.openWith) {
+    const steps = comment.openWith.map((s) => `${formatName(s.name)} (\`${s.selector}\`)`)
+    lines.push(`- **To see it:** click ${steps.join(', then ')}`)
   }
   const { text, viewport } = comment.context
   if (text) lines.push(`- **Text there:** “${text}”`)

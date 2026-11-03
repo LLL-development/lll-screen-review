@@ -1,4 +1,4 @@
-import { findElement, isOurUi, isShown, mountUi, removeUi } from './ui'
+import { findElement, isOurUi, isRendered, isShown, mountUi, removeUi } from './ui'
 import { selectorFor } from './selector'
 import {
   mountHighlight,
@@ -7,7 +7,10 @@ import {
   highlightedElement,
   showCandidate,
   foundTargets,
+  flashHighlight,
+  type HighlightTarget,
 } from './highlight'
+import { describeWayIn, doorOf, mountReveal, notePress, reveal, wayInFor } from './reveal'
 import {
   addComment,
   commentTargets,
@@ -151,9 +154,10 @@ export function startReviewTool(options: ReviewToolOptions = {}): void {
 
   mountUi(toggle)
   mountHighlight()
-  mountPanel(goToComment, openTickets)
-  mountPins(openCommentReader)
+  mountPanel(goToComment, openTickets, showComment)
+  mountPins(showComment)
   mountDock()
+  mountReveal()
   dockPiece(toggle, () => true)
 
   // Comments restored from a previous visit should be visible straight away,
@@ -329,10 +333,25 @@ function swallow(event: Event): void {
 
 function onPress(event: MouseEvent): void {
   if (reviewTarget(event)) swallow(event)
+  else if (event.type === 'pointerdown') remember(event)
+}
+
+/**
+ * Notes a press of the reviewer's own on the page, out of review mode. What
+ * opens a popup is worth knowing, should a comment be left inside it; see
+ * reveal.ts.
+ */
+function remember(event: MouseEvent): void {
+  const target = event.target
+  if (!reviewMode && event.isTrusted && target instanceof Element && !isOurUi(target)) {
+    notePress(target, pageUrl)
+  }
 }
 
 function onClick(event: MouseEvent): void {
   if (!reviewMode) {
+    // Enter on a focused button clicks it without any press first.
+    remember(event)
     // A comment being read closes when you click anywhere else on the page,
     // and the click carries on as normal.
     const target = event.target
@@ -423,6 +442,8 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   // — a single-page app can move on to another page under an open box.
   const context = captureContext(el)
   const page = pageUrl
+  // And what opens the popup it's in, if it is in one, while it's open.
+  const openWith = wayInFor(el, page)
 
   /**
    * What the comment is about. The element clicked stays first: the comment
@@ -533,7 +554,7 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
     // Taken before saving, while the page still shows what the comment is
     // about. The comment is saved with or without one.
     const shot = await takeScreenshot(selected.map((s) => s.el))
-    const entry = capture(selector, text, context, clarified, page, others)
+    const entry = capture({ selector, comment: text, context, clarified, url: page, others, openWith })
     // Esc can close the box while the picture is being taken.
     if (popup?.el === box) closePopup()
     // Marked up with the number the comment has just been given.
@@ -624,12 +645,18 @@ function closePopup(): void {
 }
 
 /**
- * Opens a saved comment for reading, triggered by clicking its pin.
+ * Opens a saved comment for reading; see showComment, which is how a click
+ * on its pin or its panel row gets here.
  *
  * This works whether or not review mode is on: pins stay on the page, so
  * reading back what was said should not require arming the tool first.
+ * revealFailed says its way in was just pressed and didn't bring the
+ * element back.
  */
-function openCommentReader(comment: ReviewComment): void {
+function openCommentReader(
+  comment: ReviewComment,
+  { revealFailed = false }: { revealFailed?: boolean } = {},
+): void {
   // Not at the cost of a comment still being written.
   if (popup?.hasDraft()) {
     nudgePopup()
@@ -690,8 +717,19 @@ function openCommentReader(comment: ReviewComment): void {
     body.append(acceptance)
   }
 
+  // How to get there next time, for a developer opening it on their own.
+  if (comment.openWith) {
+    const way = document.createElement('p')
+    way.className = 'sr-reader-way'
+    way.textContent = `To see it, click ${describeWayIn(comment.openWith)}.`
+    body.append(way)
+  }
+
   const edited = buildEditedNote(comment)
   if (edited) body.append(edited)
+
+  // Nothing outlined: say where the element has got to, before anything else.
+  if (seen.length === 0) body.prepend(buildWhereNote(comment, found, revealFailed))
 
   const actions = box.querySelector('.sr-popup-actions') as HTMLElement
   if (comment.screenshot) {
@@ -779,6 +817,55 @@ function openCommentReader(comment: ReviewComment): void {
   }
 }
 
+/**
+ * Said at the top of a comment whose element can't be seen, so the reader
+ * isn't left wondering what it's about: where the element has got to, and
+ * how to bring it back.
+ */
+function buildWhereNote(
+  comment: ReviewComment,
+  found: readonly HighlightTarget[],
+  revealFailed: boolean,
+): HTMLElement {
+  const note = document.createElement('div')
+  note.className = 'sr-reader-where'
+  const text = document.createElement('p')
+  note.append(text)
+
+  const door = doorOf(comment)
+  // What opens it is there, but something is open on top of that too.
+  const coveredDoor = door
+    ? null
+    : comment.openWith?.find((step) => {
+        const el = findElement(step.selector)
+        return el !== null && isRendered(el)
+      })
+  if (coveredDoor) {
+    text.textContent = `It’s inside something closed, and what opens it, ${formatName(coveredDoor.name)}, is covered by something open on the page. Close that, then come back to this comment.`
+  } else if (door && comment.openWith) {
+    const way = describeWayIn(comment.openWith.slice(door.index))
+    text.textContent = revealFailed
+      ? `Clicking ${way} didn’t bring it back. Open it on the page and its pin comes back.`
+      : 'It’s inside something closed right now.'
+    const open = document.createElement('button')
+    open.type = 'button'
+    open.className = 'sr-reader-open'
+    open.textContent = revealFailed ? 'Try again' : 'Open it'
+    open.title = `Clicks ${way} for you`
+    open.addEventListener('click', () => void showComment(comment))
+    note.append(open)
+  } else if (found.some((t) => isRendered(t.el))) {
+    text.textContent =
+      'Something open on the page is covering it right now, like a popup. Close that and its pin comes back.'
+  } else if (found.length > 0) {
+    text.textContent =
+      'It’s inside something closed right now, like a popup or a menu. Open that on the page and its pin comes back.'
+  } else {
+    text.textContent = 'Its element isn’t on the page any more.'
+  }
+  return note
+}
+
 /** This page's comments, in the order of their numbers. */
 function commentsInOrder(): ReviewComment[] {
   return getComments()
@@ -788,18 +875,69 @@ function commentsInOrder(): ReviewComment[] {
 
 /**
  * Moves the open reader on to the next comment on the page (1) or back to
- * the previous one (-1), scrolling its element into view first.
+ * the previous one (-1); see showComment.
  */
 function stepReader(direction: number): void {
   const id = popup?.commentId
   if (id == null) return
   const onPage = commentsInOrder()
   const next = onPage[onPage.findIndex((c) => c.id === id) + direction]
-  if (!next) return
-  foundTargets(next)
-    .find((t) => isShown(t.el))
-    ?.el.scrollIntoView({ block: 'center' })
-  openCommentReader(next)
+  if (next) void showComment(next)
+}
+
+/** Bumped by every showComment, so only the latest gets to open its reader. */
+let showing = 0
+
+/**
+ * Takes the reviewer to a comment: its element scrolled into view, and the
+ * comment open beside it. An element inside something closed, a popup or a
+ * menu, is brought back first by clicking its way in, as the reviewer did
+ * (see reveal.ts); one that isn't there to bring back opens its reader
+ * anyway, saying so. Clicking its pin or its panel row, or stepping to it in
+ * the reader, all end up here.
+ */
+async function showComment(comment: ReviewComment): Promise<void> {
+  // Not at the cost of a comment still being written.
+  if (popup?.hasDraft()) {
+    nudgePopup()
+    return
+  }
+  const turn = ++showing
+
+  let el = firstShown(comment) ?? scrolledIntoSight(comment)
+  let revealed = false
+  let revealFailed = false
+  if (!el && comment.openWith && doorOf(comment)) {
+    // Out of the way while the page opens up.
+    closePopup()
+    el = await reveal(comment.openWith, () => firstShown(comment))
+    revealed = el !== null
+    revealFailed = !revealed
+    // Switched off, gone on to another comment or another page, or started
+    // writing one, while it opened.
+    if (!running || turn !== showing || !isOnThisPage(comment) || popup?.hasDraft()) return
+  }
+
+  const moved = el !== null && !isInView(el)
+  if (moved) el?.scrollIntoView({ block: 'center', behavior: 'instant' })
+  openCommentReader(comment, { revealFailed })
+  if (moved || revealed) flashHighlight()
+}
+
+/** The first of a comment's elements that can be seen, or null. */
+function firstShown(comment: ReviewComment): Element | null {
+  return foundTargets(comment).find((t) => isShown(t.el))?.el ?? null
+}
+
+/**
+ * The first of a comment's elements that shows once scrolled to: one in a
+ * long menu or a table that scrolls by itself, cut off where its box ends.
+ */
+function scrolledIntoSight(comment: ReviewComment): Element | null {
+  const drawn = foundTargets(comment).find((t) => isRendered(t.el))
+  if (!drawn) return null
+  drawn.el.scrollIntoView({ block: 'center', behavior: 'instant' })
+  return isShown(drawn.el) ? drawn.el : null
 }
 
 /**
@@ -845,9 +983,9 @@ function openTickets(): void {
 
 /**
  * Opens the comment goToComment came here for, once its element is on the
- * page. Plenty of pages build themselves after loading, so the element gets
- * a few seconds to turn up; if it never does, the comment opens anyway, with
- * nothing to point at.
+ * page, or the first step of its way in is (see showComment). Plenty of
+ * pages build themselves after loading, so they get a few seconds to turn
+ * up; if they never do, the comment opens anyway, with nothing to point at.
  */
 function openRequestedComment(): void {
   const id = Number(readSession(OPEN_KEY))
@@ -860,13 +998,13 @@ function openRequestedComment(): void {
     // Switched off, moved on, or busy with something else in the meantime.
     if (!running || popup || !isOnThisPage(comment)) return
 
-    const el = findElement(comment.selector)
-    if (!el && performance.now() - started < ARRIVAL_WAIT_MS) {
+    const ready =
+      firstShown(comment) ?? (comment.openWith ? doorOf(comment) : findElement(comment.selector))
+    if (!ready && performance.now() - started < ARRIVAL_WAIT_MS) {
       setTimeout(attempt, 250)
       return
     }
-    el?.scrollIntoView({ block: 'center' })
-    openCommentReader(comment)
+    void showComment(comment)
   }
   attempt()
 }
@@ -880,21 +1018,25 @@ function onBeforeUnload(event: BeforeUnloadEvent): void {
 }
 
 /** Records a comment: into the store (so the panel shows it) and the console. */
-function capture(
-  selector: string,
-  comment: string,
-  context: ElementContext,
-  clarified: string,
-  url: string,
-  others: CommentTarget[],
-): ReviewComment {
+function capture(input: {
+  selector: string
+  comment: string
+  context: ElementContext
+  clarified: string
+  url: string
+  others: CommentTarget[]
+  openWith: CommentTarget[]
+}): ReviewComment {
+  const { others, clarified, openWith } = input
   const entry = addComment({
-    selector,
-    comment,
-    url,
-    context,
+    selector: input.selector,
+    comment: input.comment,
+    url: input.url,
+    context: input.context,
     // Only present for a comment on more than one element.
     ...(others.length > 0 ? { others } : {}),
+    // Only present for elements inside something that opens.
+    ...(openWith.length > 0 ? { openWith } : {}),
     // Only present when the reviewer went through the clarify step and kept
     // the wording.
     ...(clarified ? { clarified } : {}),
@@ -909,6 +1051,7 @@ function capture(
   if (entry.others) {
     console.log('also on :', entry.others.map((o) => formatName(o.name)).join(' · '))
   }
+  if (entry.openWith) console.log('opens by:', describeWayIn(entry.openWith))
   console.log('comment :', entry.comment)
   console.log('element :', `<${entry.context.tagName}> ${entry.context.text}`)
   console.log('nearby  :', entry.context.nearbyText)

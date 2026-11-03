@@ -49,6 +49,12 @@ export type ReviewComment = {
    */
   others?: CommentTarget[]
   /**
+   * How to get to the elements when they're inside something that opens,
+   * a popup or a tab: what to press, in order, from the page as it first
+   * loads; see reveal.ts. Absent for elements simply on the page.
+   */
+  openWith?: CommentTarget[]
+  /**
    * The agreed wording after the AI asked a follow-up question, as confirmed
    * by the reviewer. Absent when nobody clarified.
    */
@@ -430,6 +436,7 @@ function toComment(value: unknown): ReviewComment | null {
   if (typeof raw.comment !== 'string') return null
 
   const others = toTargets(raw.others)
+  const openWith = toTargets(raw.openWith)
   return {
     id: raw.id,
     selector: raw.selector,
@@ -443,6 +450,7 @@ function toComment(value: unknown): ReviewComment | null {
     status: raw.status === 'resolved' ? 'resolved' : 'open',
     context: toContext(raw.context),
     ...(others.length > 0 ? { others } : {}),
+    ...(openWith.length > 0 ? { openWith } : {}),
     ...(typeof raw.clarified === 'string' && raw.clarified
       ? { clarified: raw.clarified }
       : {}),
@@ -511,7 +519,10 @@ function toContext(value: unknown): ElementContext {
   }
 }
 
-/** A comment's other elements; entries without a selector are dropped. */
+/**
+ * A comment's other elements, or its way in; entries without a selector are
+ * dropped.
+ */
 function toTargets(value: unknown): CommentTarget[] {
   if (!Array.isArray(value)) return []
 
