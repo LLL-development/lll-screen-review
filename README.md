@@ -410,8 +410,12 @@ mouse handlers skip anything inside it. Without that, the tool reviews itself:
 hovering the panel outlines the panel, and clicking **Resolve** opens a comment
 box about the Resolve button. It sits beside `<body>` rather than inside it, so
 a page that swaps its body out as it navigates — plenty do — doesn't take the
-tool with it. Keys typed into the tool stay in the tool, so an "s" in a comment
-doesn't set off the site's search shortcut. The one thing it does to the page's
+tool with it. What happens in the tool stays in the tool: an "s" typed in a
+comment doesn't set off the site's search shortcut, pressing the pill or the
+comment box isn't a click outside the site's open menu (which would close it),
+and a dialog that keeps focus to itself can't pull it back out of the comment
+box. The tool's own listeners sit on the window, on the way down, so they
+still hear everything first. The one thing it does to the page's
 own look is the crosshair cursor in review mode, from
 [`page.css`](src/review/page.css).
 

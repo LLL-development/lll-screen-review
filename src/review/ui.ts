@@ -26,6 +26,42 @@ let watcher: MutationObserver | null = null
 /** What each piece needs undone when the tool comes off the page. */
 const cleanups: (() => void)[] = []
 
+/**
+ * What happens in the tool stays in the tool. Sites listen on the document
+ * for keys, for presses outside their menus, and for focus leaving their
+ * popups: an "s" typed into a comment would set off their search shortcut,
+ * and pressing the Review mode pill, or into the comment box, would close
+ * the very menu being commented on. The tool's own listeners are on the
+ * window, on the way down, so they still hear everything first.
+ */
+const KEPT_IN = [
+  'keydown',
+  'keyup',
+  'keypress',
+  'pointerdown',
+  'pointerup',
+  'mousedown',
+  'mouseup',
+  'click',
+  'dblclick',
+  'auxclick',
+  'contextmenu',
+  'touchstart',
+  'touchend',
+]
+
+/**
+ * Focus moving into the tool is stopped sooner, as it passes the window on
+ * the way down. A dialog that keeps the focus inside itself often listens on
+ * the way down too, and would pull it straight back out of the comment box.
+ * Nothing in the tool listens for these itself.
+ */
+const FOCUS_EVENTS = ['focusin', 'focusout', 'focus', 'blur']
+
+function keepFocusIn(event: Event): void {
+  if (event.target instanceof Element && isOurUi(event.target)) event.stopImmediatePropagation()
+}
+
 /** Registers something to undo when the tool is taken off the page. */
 export function onRemoveUi(cleanup: () => void): void {
   cleanups.push(cleanup)
@@ -92,11 +128,13 @@ function ensureRoot(): ShadowRoot {
   style.textContent = styles
   root.append(style)
 
-  // Keys typed into the tool stay in the tool. Sites listen for shortcuts on
-  // the document, and an "s" or "/" typed into a comment would set them off.
-  for (const type of ['keydown', 'keyup', 'keypress']) {
+  for (const type of KEPT_IN) {
     root.addEventListener(type, (event) => event.stopPropagation())
   }
+  for (const type of FOCUS_EVENTS) window.addEventListener(type, keepFocusIn, true)
+  onRemoveUi(() => {
+    for (const type of FOCUS_EVENTS) window.removeEventListener(type, keepFocusIn, true)
+  })
 
   document.documentElement.appendChild(host)
   watcher = new MutationObserver(() => {

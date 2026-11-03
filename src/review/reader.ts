@@ -71,13 +71,15 @@ export function placeReader(box: HTMLElement, rect: DOMRect | null): () => void 
     resizing = true
     // As big as the window allows while dragging, whatever it opened at.
     box.style.maxHeight = `calc(100vh - ${GAP * 2}px)`
+    // On the way down: on the way up, a release over the tool never gets
+    // past it (see ui.ts).
     window.addEventListener(
       'pointerup',
       () => {
         resizing = false
         saveSize(box.offsetWidth, box.offsetHeight)
       },
-      { once: true },
+      { once: true, capture: true },
     )
   }
 
