@@ -147,6 +147,11 @@
   min-width: 0;
 }
 
+/* The reader's own list, while the editor lists them instead. */
+.sr-target[hidden] {
+  display: none;
+}
+
 .sr-popup .sr-target-toggle {
   flex: none;
   padding: 1px 6px;
@@ -679,6 +684,33 @@
   color: #9aa1ad;
   font-style: normal;
   font-weight: 400;
+}
+
+/* What it's about, at the top of the form, changed by Shift+clicking the page. */
+.sr-editor-elements .sr-picker {
+  font-weight: 400;
+}
+
+.sr-editor-elements .sr-target {
+  margin-bottom: 2px;
+}
+
+.sr-editor-elements .sr-similar {
+  margin-bottom: 2px;
+}
+
+.sr-editor-pick {
+  color: #7a828f;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* An element the comment is about that isn't on the page right now. */
+.sr-target-lost {
+  margin-left: 6px;
+  color: #b4261f;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .sr-editor textarea {
@@ -1376,6 +1408,20 @@
 :host([data-see-through]) .sr-toggle,
 :host([data-see-through]) .sr-panel {
   opacity: 0.2;
+}
+
+/* Moving with Shift held, to pick an element for the comment (see
+   review.ts): the box, the panel and the pill let the click through to
+   whatever they're over. */
+.sr-popup {
+  transition: opacity 0.15s;
+}
+
+:host([data-picking]) .sr-popup,
+:host([data-picking]) .sr-panel,
+:host([data-picking]) .sr-toggle {
+  opacity: 0.25;
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -152,8 +152,9 @@ function draw(targets: readonly HighlightTarget[]): void {
 
   boxes.forEach((box, i) => {
     const rect = rects[i]
-    // A spare box, or an element taken out of the page: nothing to outline.
-    if (!rect) {
+    // A spare box, an element taken out of the page, or one with no size,
+    // in a popup that's closed say: nothing to outline.
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
       box.style.display = 'none'
       return
     }

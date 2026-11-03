@@ -1,4 +1,12 @@
-import { findElement, isOurUi, isRendered, isShown, mountUi, removeUi } from './ui'
+import {
+  findElement,
+  isOurUi,
+  isRendered,
+  isShown,
+  mountUi,
+  removeUi,
+  setHostState,
+} from './ui'
 import { selectorFor } from './selector'
 import {
   mountHighlight,
@@ -26,12 +34,12 @@ import {
   type ReviewComment,
 } from './store'
 import { captureContext, type ElementContext } from './context'
-import { buildName, describeElement, formatName } from './describe'
+import { describeElement, formatName } from './describe'
 import { createClarifySection } from './clarify-ui'
 import { mountPanel, setPanelVisible, hasComments } from './panel'
 import { mountPins } from './pins'
 import { dockPiece, mountDock, seeThrough } from './dock'
-import { findSimilar } from './similar'
+import { buildTargets, createPicker } from './targets'
 import { applySavedSize, placeReader } from './reader'
 import { buildCommentEditor, buildEditedNote, type CommentEditor } from './edit'
 import { escapeTicketReview, openTicketReview } from './tickets'
@@ -136,13 +144,6 @@ const OPEN_KEY = 'screen-review:open-comment'
 /** How long a page just opened gets to show a comment's element. */
 const ARRIVAL_WAIT_MS = 5000
 
-/**
- * Whether comment boxes show the CSS selector under the element's name.
- * Remembered per tab, so a developer who wants it opens it once.
- */
-const SELECTOR_KEY = 'screen-review:show-selector'
-let showSelector = readSession(SELECTOR_KEY) === 'on'
-
 const toggle = buildToggle()
 
 /** Mounts the tool onto the current page. Call once, on page load. */
@@ -172,6 +173,7 @@ export function startReviewTool(options: ReviewToolOptions = {}): void {
   window.addEventListener('click', onClick, true)
   for (const type of PRESS_EVENTS) window.addEventListener(type, onPress, true)
   window.addEventListener('keydown', onKeyDown, true)
+  window.addEventListener('keyup', onKeyUp, true)
   window.addEventListener('beforeunload', onBeforeUnload)
 
   console.log(
@@ -213,6 +215,7 @@ export function stopReviewTool(): void {
   window.removeEventListener('click', onClick, true)
   for (const type of PRESS_EVENTS) window.removeEventListener(type, onPress, true)
   window.removeEventListener('keydown', onKeyDown, true)
+  window.removeEventListener('keyup', onKeyUp, true)
   window.removeEventListener('beforeunload', onBeforeUnload)
   document.documentElement.classList.remove('sr-active')
 
@@ -267,10 +270,20 @@ function onCommentsChanged(): void {
 // --- hovering ---------------------------------------------------------------
 
 function onMouseMove(event: MouseEvent): void {
-  if (!reviewMode) return
-
   const target = event.target
   if (!(target instanceof Element)) return
+
+  // Moving with Shift held, while a comment takes elements, is reaching for
+  // one: the box, the panel and the pill let clicks through to whatever
+  // they're over. Not on Shift alone, or typing a capital would flicker.
+  setPicking(event.shiftKey && Boolean(popup?.group))
+
+  // Out of review mode the page is the reviewer's to use. With a comment
+  // taking elements, what a Shift+click would do shows while Shift is held.
+  if (!reviewMode) {
+    if (popup?.group) pointAt(event.shiftKey && !isOurUi(target) ? target : null)
+    return
+  }
 
   // While a comment box is open the highlight stays put on its elements, so
   // the outline keeps showing what the comment is about. The element under
@@ -296,6 +309,19 @@ function onMouseMove(event: MouseEvent): void {
   }
 }
 
+let picking = false
+
+/** See onMouseMove; the look is in review.css. */
+function setPicking(on: boolean): void {
+  if (on === picking) return
+  picking = on
+  setHostState('picking', on ? '' : null)
+}
+
+function onKeyUp(event: KeyboardEvent): void {
+  if (event.key === 'Shift') setPicking(false)
+}
+
 /** Shows what a Shift+click on el would do to the comment being written. */
 function pointAt(el: Element | null): void {
   const hint = el && popup?.group?.hint(el)
@@ -306,10 +332,11 @@ function pointAt(el: Element | null): void {
 
 /**
  * The page element a review-mode click or press landed on, or null when it
- * is none of our business.
+ * is none of our business. Out of review mode only Shift+clicks are, and
+ * only while a comment being written or edited is taking elements.
  */
 function reviewTarget(event: MouseEvent): Element | null {
-  if (!reviewMode) return null
+  if (!reviewMode && !(event.shiftKey && popup?.group)) return null
 
   // Clicks a page's own script makes — a slider advancing itself, say — are
   // the page's business. Opening a comment box for one would also throw away
@@ -349,31 +376,36 @@ function remember(event: MouseEvent): void {
 }
 
 function onClick(event: MouseEvent): void {
-  if (!reviewMode) {
-    // Enter on a focused button clicks it without any press first.
-    remember(event)
-    // A comment being read closes when you click anywhere else on the page,
-    // and the click carries on as normal.
-    const target = event.target
-    if (popup && event.isTrusted && target instanceof Element && !isOurUi(target)) {
-      closePopup()
-    }
-    return
-  }
-
   const target = reviewTarget(event)
-  if (!target) return
-  swallow(event)
 
-  // Shift+click adds to the comment being written, or takes back off it.
-  if (event.shiftKey && popup?.group) {
+  // Shift+click adds to the comment being written or edited, or takes back
+  // off it, review mode or not.
+  if (target && event.shiftKey && popup?.group) {
+    swallow(event)
     popup.group.toggle(target)
     pointAt(target)
     return
   }
 
-  // A stray click shouldn't cost a half-written comment.
-  if (popup?.hasDraft()) {
+  if (!reviewMode) {
+    // Enter on a focused button clicks it without any press first.
+    remember(event)
+    // A comment being read closes when you click anywhere else on the page,
+    // and the click carries on as normal. One being edited stays open: the
+    // page may need opening up to reach what's to be added to it.
+    const clicked = event.target
+    if (popup && !popup.group && event.isTrusted && clicked instanceof Element && !isOurUi(clicked)) {
+      closePopup()
+    }
+    return
+  }
+
+  if (!target) return
+  swallow(event)
+
+  // A stray click shouldn't cost a half-written comment, or one open for
+  // editing: a click meant as a Shift+click shouldn't close the editor.
+  if (popup?.hasDraft() || (popup?.group && popup.commentId !== null)) {
     nudgePopup()
     return
   }
@@ -445,16 +477,6 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   // And what opens the popup it's in, if it is in one, while it's open.
   const openWith = wayInFor(el, page)
 
-  /**
-   * What the comment is about. The element clicked stays first: the comment
-   * hangs on it, and its context is the one saved. Shift+click adds more.
-   */
-  const selected: (CommentTarget & { el: Element })[] = [
-    { el, selector, name: context.name },
-  ]
-  // Looked for now, while the page is as the reviewer saw it when clicking.
-  const similar = findSimilar(el)
-
   const box = document.createElement('div')
   box.className = 'sr-popup'
   box.innerHTML = `
@@ -473,50 +495,24 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
   const cancelButton = box.querySelector('.sr-cancel') as HTMLButtonElement
   const actions = box.querySelector('.sr-popup-actions') as HTMLElement
 
-  const add = (other: Element) => {
-    selected.push({ el: other, selector: selectorFor(other), name: describeElement(other) })
-    // The rest in page order, however they were picked, so the list reads
-    // top to bottom.
-    const [first, ...rest] = selected
-    rest.sort((a, b) =>
-      a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
-    )
-    selected.splice(0, selected.length, first, ...rest)
-  }
-  const remove = (index: number) => {
-    selected.splice(index, 1)
-    showSelected()
-    textarea.focus()
-  }
-
-  /** Lists the elements in the box, and outlines them on the page. */
-  const showSelected = () => {
-    targets.replaceChildren(buildTarget(selected, remove))
-
-    // The rest of the cards in the grid, say: one click takes them all in.
-    const unpicked = similar.filter(
-      (other) => other.isConnected && !selected.some((s) => s.el === other),
-    )
-    if (unpicked.length > 0) {
-      const takeAll = document.createElement('button')
-      takeAll.type = 'button'
-      takeAll.className = 'sr-similar'
-      takeAll.textContent = `+ Add ${unpicked.length} more like ${selected.length > 1 ? 'these' : 'this'}`
-      takeAll.addEventListener('click', () => {
-        for (const other of unpicked) add(other)
-        showSelected()
-        textarea.focus()
-      })
-      targets.append(takeAll)
-    }
-
+  const ask = () => {
+    const count = picker.picked().length
     textarea.placeholder =
-      selected.length > 1
-        ? `What should change about these ${selected.length}?`
-        : 'What should change about this?'
-    showHighlight(selected.map((s) => ({ el: s.el, text: formatName(s.name) })))
+      count > 1 ? `What should change about these ${count}?` : 'What should change about this?'
   }
-  showSelected()
+  /**
+   * What the comment is about. The element clicked stays first: the comment
+   * hangs on it, and its context is the one saved. Shift+click adds more.
+   */
+  const picker = createPicker([{ el, selector, name: context.name }], {
+    keepFirst: true,
+    onChange: () => {
+      ask()
+      textarea.focus()
+    },
+  })
+  targets.append(picker.element)
+  ask()
 
   // The clarify step hides itself when no model is configured, so the popup
   // looks and behaves exactly as before when the AI is not set up.
@@ -524,7 +520,11 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
     selector,
     context,
     getComment: () => textarea.value.trim(),
-    getOthers: () => selected.slice(1).map((s) => formatName(s.name)),
+    getOthers: () =>
+      picker
+        .picked()
+        .slice(1)
+        .map((s) => formatName(s.name)),
   })
   actions.insertBefore(clarify.button, saveButton)
   box.insertBefore(clarify.element, actions)
@@ -541,19 +541,20 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
     saving = true
     saveButton.disabled = true
 
-    const others = selected.slice(1).map(({ selector, name }) => ({ selector, name }))
+    const picked = picker.picked()
+    const others = picked.slice(1).map(({ selector, name }) => ({ selector, name }))
     const clarified = clarify.getClarified()
 
     // A picture of the page without the element in it says little. Scrolled
     // straight there: a smooth scroll would still be moving when it's taken.
-    const first = selected[0].el
-    if (canTakeScreenshots() && first.isConnected && !isInView(first)) {
+    const first = picked[0].el
+    if (canTakeScreenshots() && first?.isConnected && !isInView(first)) {
       first.scrollIntoView({ block: 'center', behavior: 'instant' })
     }
 
     // Taken before saving, while the page still shows what the comment is
     // about. The comment is saved with or without one.
-    const shot = await takeScreenshot(selected.map((s) => s.el))
+    const shot = await takeScreenshot(picked.flatMap((s) => (s.el ? [s.el] : [])))
     const entry = capture({ selector, comment: text, context, clarified, url: page, others, openWith })
     // Esc can close the box while the picture is being taken.
     if (popup?.el === box) closePopup()
@@ -574,23 +575,9 @@ function openPopup(el: Element, clickX: number, clickY: number): void {
     commentId: null,
     // Picking out several elements is work worth keeping too.
     hasDraft: () =>
-      Boolean(textarea.value.trim() || clarify.getClarified() || selected.length > 1),
+      Boolean(textarea.value.trim() || clarify.getClarified() || picker.picked().length > 1),
     stopPlacing: keepNear(box, clickX, clickY),
-    group: {
-      toggle: (other) => {
-        const index = selected.findIndex((s) => s.el === other)
-        // The first is what the comment hangs on; it stays.
-        if (index === 0) return
-        if (index > 0) selected.splice(index, 1)
-        else add(other)
-        showSelected()
-      },
-      hint: (other) => {
-        const index = selected.findIndex((s) => s.el === other)
-        if (index === 0) return null
-        return index > 0 ? 'Shift+click to take this off' : 'Shift+click to add this'
-      },
-    },
+    group: { toggle: picker.toggle, hint: picker.hint },
   }
   textarea.focus()
 }
@@ -642,6 +629,7 @@ function closePopup(): void {
   popup?.el.remove()
   popup = null
   hideHighlight()
+  setPicking(false)
 }
 
 /**
@@ -684,7 +672,7 @@ function openCommentReader(
         <span class="sr-reader-position"></span>
         <button type="button" class="sr-reader-step" data-step="1" title="Next comment (→)" aria-label="Next comment">›</button>
       </div>
-      <button type="button" class="sr-reader-edit" title="Reword it, keeping its number, pin and screenshot">Edit</button>
+      <button type="button" class="sr-reader-edit" title="Reword it, or change what it's about, keeping its number">Edit</button>
       <button type="button" class="sr-reader-expand"></button>
       <button type="button" class="sr-cancel">Close</button>
     </div>
@@ -693,7 +681,8 @@ function openCommentReader(
   // Everything below is page data or user text, so it goes in as text.
   const number = box.querySelector('.sr-popup-number') as HTMLElement
   number.textContent = String(comment.id)
-  number.after(buildTarget(commentTargets(comment)))
+  const about = buildTargets(commentTargets(comment))
+  number.after(about)
 
   const body = box.querySelector('.sr-reader-body') as HTMLElement
   const text = box.querySelector('.sr-popup-text') as HTMLElement
@@ -740,25 +729,37 @@ function openCommentReader(
   closeButton.addEventListener('click', closePopup)
 
   // Editing swaps the words and the buttons for a form, in the same reader:
-  // the element stays outlined and the screenshot stays in view.
+  // the screenshot stays in view, and the elements are outlined and listed in
+  // the form, where Shift+clicking the page adds to them or takes them off.
   let editor: CommentEditor | null = null
   const stopEditing = () => {
     editor?.el.remove()
     editor = null
-    body.hidden = actions.hidden = false
+    body.hidden = actions.hidden = about.hidden = false
+    if (popup?.el === box) popup.group = undefined
+    // Back to outlining what it's about as saved.
+    pointAt(null)
+    showHighlight(foundTargets(comment).filter((t) => isShown(t.el)))
   }
   const startEditing = () => {
     if (editor) return
-    editor = buildCommentEditor(comment, {
-      onSaved: () => {
-        stopEditing()
-        const saved = getComments().find((c) => c.id === comment.id)
-        if (saved) openCommentReader(saved)
+    editor = buildCommentEditor(
+      comment,
+      {
+        onSaved: ({ elementsChanged }) => {
+          stopEditing()
+          const saved = getComments().find((c) => c.id === comment.id)
+          if (!saved) return
+          openCommentReader(saved)
+          if (elementsChanged) void retakeScreenshot(saved.id)
+        },
+        onCancel: stopEditing,
       },
-      onCancel: stopEditing,
-    })
-    body.hidden = actions.hidden = true
+      { pickElements: true },
+    )
+    body.hidden = actions.hidden = about.hidden = true
     body.after(editor.el)
+    if (popup?.el === box) popup.group = editor.group
     editor.focus()
   }
   ;(box.querySelector('.sr-reader-edit') as HTMLButtonElement).addEventListener(
@@ -861,7 +862,8 @@ function buildWhereNote(
     text.textContent =
       'It’s inside something closed right now, like a popup or a menu. Open that on the page and its pin comes back.'
   } else {
-    text.textContent = 'Its element isn’t on the page any more.'
+    text.textContent =
+      'Its element isn’t on the page any more. Press Edit, then Shift+click the right one to point the comment at it.'
   }
   return note
 }
@@ -950,7 +952,9 @@ function closeWhenUnseen(comment: ReviewComment): () => void {
   const seen = () => foundTargets(comment).some((t) => isShown(t.el))
   if (!seen()) return () => {}
   const timer = setInterval(() => {
-    if (popup?.commentId === comment.id && !seen()) closePopup()
+    // Not while it's being edited: the reviewer may well be opening up
+    // another part of the page, to pick something from it.
+    if (popup?.commentId === comment.id && !popup.group && !seen()) closePopup()
   }, 500)
   return () => clearInterval(timer)
 }
@@ -1085,76 +1089,32 @@ async function attachScreenshot(entry: ReviewComment, shot: Screenshot): Promise
   }
 }
 
-// --- helpers ----------------------------------------------------------------
-
 /**
- * What a comment is about, as a person would say it, with the CSS selector
- * one click away for anyone who wants it. Several elements are counted and
- * listed; give onRemove and each but the first can be taken off.
+ * A new picture for a comment whose elements were just changed, marking
+ * the ones it's about now. Only taken with them on screen; otherwise the
+ * old one stays. A reader left open on the comment shows the new one.
  */
-function buildTarget(
-  targets: readonly CommentTarget[],
-  onRemove?: (index: number) => void,
-): HTMLElement {
-  const target = document.createElement('div')
-  target.className = 'sr-target'
+async function retakeScreenshot(id: number): Promise<void> {
+  const comment = getComments().find((c) => c.id === id)
+  if (!comment || !canTakeScreenshots()) return
+  const shown = foundTargets(comment)
+    .filter((t) => isShown(t.el))
+    .map((t) => t.el)
+  if (shown.length === 0) return
+  if (!isInView(shown[0])) shown[0].scrollIntoView({ block: 'center', behavior: 'instant' })
 
-  const toggle = document.createElement('button')
-  toggle.type = 'button'
-  toggle.className = 'sr-target-toggle'
-  toggle.textContent = '</>'
+  const shot = await takeScreenshot(shown)
+  const current = getComments().find((c) => c.id === id)
+  if (!shot || !current) return
+  const old = current.screenshot
+  await attachScreenshot(current, shot)
 
-  // textContent, not innerHTML: a selector can contain characters that came
-  // from the page's own markup, and we never want to run those as HTML.
-  const code = document.createElement('code')
-  code.className = 'sr-target-selector'
-  code.textContent = targets.map((t) => t.selector).join('\n')
-
-  const show = (open: boolean) => {
-    code.hidden = !open
-    toggle.setAttribute('aria-expanded', String(open))
-    toggle.title = open ? 'Hide the CSS selector' : 'Show the CSS selector'
-    toggle.setAttribute('aria-label', toggle.title)
-  }
-  show(showSelector)
-
-  toggle.addEventListener('click', () => {
-    showSelector = !showSelector
-    writeSession(SELECTOR_KEY, showSelector ? 'on' : 'off')
-    show(showSelector)
-  })
-
-  if (targets.length === 1) {
-    target.append(buildName(targets[0].name), toggle, code)
-    return target
-  }
-
-  const count = document.createElement('span')
-  count.className = 'sr-target-count'
-  count.textContent = `${targets.length} elements`
-
-  const list = document.createElement('ul')
-  list.className = 'sr-target-list'
-  targets.forEach(({ name }, index) => {
-    const item = document.createElement('li')
-    item.append(buildName(name))
-
-    if (onRemove && index > 0) {
-      const remove = document.createElement('button')
-      remove.type = 'button'
-      remove.className = 'sr-target-remove'
-      remove.textContent = '×'
-      remove.title = 'Leave this one out'
-      remove.setAttribute('aria-label', `Leave out ${formatName(name)}`)
-      remove.addEventListener('click', () => onRemove(index))
-      item.append(remove)
-    }
-    list.append(item)
-  })
-
-  target.append(count, toggle, list, code)
-  return target
+  const updated = getComments().find((c) => c.id === id)
+  if (old && updated?.screenshot !== old) deleteScreenshot(old)
+  if (updated && popup?.commentId === id && !popup.group) openCommentReader(updated)
 }
+
+// --- helpers ----------------------------------------------------------------
 
 /** Whether any of the element is inside the window. */
 function isInView(el: Element): boolean {

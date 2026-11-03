@@ -343,7 +343,7 @@ function buildRow(comment: ReviewComment): HTMLElement {
         : covered
           ? 'Something open on the page is on top of it, like a popup. Close that and the pin comes back.'
           : lost
-            ? ''
+            ? 'The page has changed since. Open the comment and press Edit to point it at the right element.'
             : 'It is on the page, but inside something closed, like a popup or a menu. Open it and the pin comes back.'
     return { seen, door }
   }

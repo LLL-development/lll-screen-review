@@ -79,13 +79,16 @@ under the cursor gets a dashed outline saying what a Shift+click would do. When
 the page has more elements built like the one you clicked, the box offers
 **+ Add 5 more like this** to take them all at once. "Like this" means the same
 tag and classes, directly inside the same kind of parent, which is how a
-template repeats. Every element gets a pin with the comment's number.
+template repeats. Every element gets a pin with the comment's number. Forgot
+one? Add it later with **Edit**. If the box is in the way of what you want
+to add, hold `Shift` and move the mouse: the box, the panel and the pill fade
+and let the click through.
 
 | | |
 | --- | --- |
 | `Ctrl`/`Cmd` + `Enter` | Save |
 | `Esc` | Close the box, or leave review mode |
-| `Shift` + click | Add an element to the comment being written, or take it back off |
+| `Shift` + click | Add an element to the comment being written or edited, or take it back off, review mode on or off |
 | Click a pin | Read that comment back, review mode on or off |
 | Hover a panel row | Outline that comment's elements, or what opens the popup they're in |
 | Click a panel row | Go to that comment, opening the popup it's in, or go to its page |
@@ -119,7 +122,9 @@ a chat button in the corner, say, and come back as you reach for them.
 
 If an element can't be found any more, its comment stays in the panel tagged
 **ELEMENT NOT FOUND** rather than disappearing — and picks up again if the
-element comes back.
+element comes back. If the page has changed for good, point the comment at
+the element's new place: open it, press **Edit**, Shift+click the right
+element and take the lost one off with ×.
 
 A comment opens beside its element rather than on top of it. Drag the
 reader's bottom-right corner to make it bigger and the next one opens the same
@@ -132,6 +137,15 @@ screenshot: the note itself, the clarified requirement, and **Done when**,
 what someone checks to call it fixed. The wording it was first left in is
 kept, a click away under **Edited**, so the reviewer's own words are never
 lost to a tidy-up. `Ctrl`/`Cmd` + `Enter` saves, `Esc` goes back to reading.
+
+Its elements can change there too, for the two cards forgotten when it was
+left, or the button meant rather than the icon inside it. They're listed at
+the top of the form and outlined on the page: Shift+click the page to add
+one or take one off, take any off with ×, or take the offer of the rest
+built like the first. Shift+click works with review mode off as well, so
+you can open the site's menu as normal and pick what's inside it, and a
+plain click doesn't close the form. Saving with new elements takes a fresh
+screenshot to mark them, in the extension, when they're on screen.
 
 A pin only shows while its element can be seen. Comment on a button inside a
 site's popup, close the popup, and the pin goes with it, back when the popup
@@ -414,7 +428,8 @@ about each save and redraw.
 | [`dock.ts`](src/review/dock.ts) | Which corner the pill and panel sit in, and moving them |
 | [`reader.ts`](src/review/reader.ts) | Where a comment opens beside its element, and its size |
 | [`reveal.ts`](src/review/reveal.ts) | What opens the popup a comment is in, and opening it again |
-| [`edit.ts`](src/review/edit.ts) | Rewording a saved comment, keeping how it was first put |
+| [`edit.ts`](src/review/edit.ts) | Rewording a saved comment or changing its elements, keeping how it was first put |
+| [`targets.ts`](src/review/targets.ts) | Listing a comment's elements, and picking them with Shift+click |
 | [`tickets.ts`](src/review/tickets.ts) | Checking comments, then copying them out as tickets |
 | [`clipboard.ts`](src/review/clipboard.ts) | Copying text, with a fallback for when the browser says no |
 | [`text.ts`](src/review/text.ts) | Reading visible text off the page |

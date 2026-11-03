@@ -89,6 +89,18 @@ export type ReviewComment = {
 export type CommentEdit = Pick<ReviewComment, 'comment'> & {
   clarified: string
   acceptance: string
+  /** A new set of elements; left out, they stay as they are. */
+  elements?: ElementsEdit
+}
+
+/**
+ * A comment's elements, as changed: the one it hangs on first, what was on
+ * screen there, and the way in to them.
+ */
+export type ElementsEdit = {
+  targets: CommentTarget[]
+  context: ElementContext
+  openWith: CommentTarget[]
 }
 
 /** Every element a comment is about, the one clicked first. */
@@ -153,9 +165,9 @@ export function setScreenshot(id: number, screenshot: string): boolean {
 }
 
 /**
- * Rewords a comment. Its number, pin and screenshot stay as they were, so
- * fixing a note is never riskier than leaving it alone. The wording it had
- * before its first edit is kept beside the new one.
+ * Rewords a comment, or changes what it's about. Its number stays as it
+ * was, so fixing a comment is never riskier than leaving it alone. The
+ * wording it had before its first edit is kept beside the new one.
  */
 export function editComment(id: number, edit: CommentEdit): void {
   load()
@@ -182,6 +194,17 @@ export function editComment(id: number, edit: CommentEdit): void {
   else delete entry.clarified
   if (acceptance) entry.acceptance = acceptance
   else delete entry.acceptance
+
+  const [first, ...others] = edit.elements?.targets ?? []
+  if (edit.elements && first) {
+    entry.selector = first.selector
+    entry.context = edit.elements.context
+    if (others.length > 0) entry.others = others
+    else delete entry.others
+    if (edit.elements.openWith.length > 0) entry.openWith = edit.elements.openWith
+    else delete entry.openWith
+    entry.editedAt = new Date().toISOString()
+  }
   notify()
 }
 

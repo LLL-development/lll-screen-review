@@ -1,5 +1,5 @@
 /**
- * Rewording a saved comment.
+ * Rewording a saved comment, and changing what it's about.
  *
  * Notes are left fast, mid-review: half sentences, typos, "this is weird".
  * Before they become tickets someone reads them back and wants to fix them,
@@ -8,21 +8,49 @@
  * clarified requirement, and what would count as done. The store keeps the
  * wording it had before its first edit.
  *
- * The comment reader and the ticket review both use it.
+ * Its elements can change too, where the page is there to pick them from:
+ * the other two cards forgotten when it was left, the button meant rather
+ * than the icon inside it, or the new place of an element the page has
+ * moved, so a comment whose element went missing can be pointed at it
+ * again. Shift+click adds one or takes it back off, as when writing.
+ *
+ * The comment reader and the ticket review both use it; only the reader
+ * picks elements, since the ticket review covers the page.
  */
 
-import { editComment, type ReviewComment } from './store'
+import { captureContext } from './context'
+import { wayInFor } from './reveal'
+import {
+  commentTargets,
+  editComment,
+  type ElementsEdit,
+  type ReviewComment,
+} from './store'
+import { createPicker, type Picker } from './targets'
+import { findElement } from './ui'
 
 export type CommentEditor = {
   el: HTMLElement
   /** True when closing it would throw away a change. */
   hasChanges: () => boolean
   focus: () => void
+  /**
+   * A Shift+click on the page while editing: adds an element to the
+   * comment, or takes one off. Absent where elements aren't picked.
+   */
+  group?: {
+    toggle: (el: Element) => void
+    hint: (el: Element) => string | null
+  }
 }
 
 export function buildCommentEditor(
   comment: ReviewComment,
-  handlers: { onSaved: () => void; onCancel: () => void },
+  handlers: {
+    onSaved: (saved: { elementsChanged: boolean }) => void
+    onCancel: () => void
+  },
+  { pickElements = false }: { pickElements?: boolean } = {},
 ): CommentEditor {
   const form = document.createElement('div')
   form.className = 'sr-editor'
@@ -73,14 +101,27 @@ export function buildCommentEditor(
   text.addEventListener('input', sync)
   sync()
 
+  const picker = pickElements ? buildElementsField(form, comment) : null
+  const saved = commentTargets(comment)
+    .map((t) => t.selector)
+    .join('\n')
+  const elementsChanged = () =>
+    picker !== null &&
+    picker
+      .picked()
+      .map((t) => t.selector)
+      .join('\n') !== saved
+
   const submit = () => {
     if (save.disabled) return
+    const changedElements = elementsChanged()
     editComment(comment.id, {
       comment: text.value,
       clarified: clarified.value,
       acceptance: acceptance.value,
+      ...(picker && changedElements ? { elements: elementsEdit(comment, picker) } : {}),
     })
-    handlers.onSaved()
+    handlers.onSaved({ elementsChanged: changedElements })
   }
   save.addEventListener('click', submit)
   cancel.addEventListener('click', handlers.onCancel)
@@ -96,11 +137,65 @@ export function buildCommentEditor(
     hasChanges: () =>
       text.value.trim() !== comment.comment ||
       clarified.value.trim() !== (comment.clarified ?? '') ||
-      acceptance.value.trim() !== (comment.acceptance ?? ''),
+      acceptance.value.trim() !== (comment.acceptance ?? '') ||
+      elementsChanged(),
     focus: () => {
       text.focus()
       text.setSelectionRange(text.value.length, text.value.length)
     },
+    ...(picker ? { group: { toggle: picker.toggle, hint: picker.hint } } : {}),
+  }
+}
+
+/**
+ * The comment's elements, at the top of the form: listed, outlined on the
+ * page, and changed by Shift+clicking the page.
+ */
+function buildElementsField(form: HTMLElement, comment: ReviewComment): Picker {
+  const picker = createPicker(
+    commentTargets(comment).map((t) => ({ ...t, el: findElement(t.selector) })),
+    // The first can go too: pointing a comment somewhere else is the point.
+    { keepFirst: false, onChange: () => {} },
+  )
+
+  const field = document.createElement('div')
+  field.className = 'sr-editor-field sr-editor-elements'
+  const label = document.createElement('span')
+  label.textContent = 'Elements'
+  const hint = document.createElement('span')
+  hint.className = 'sr-editor-pick'
+  hint.textContent = 'Shift+click the page to add one, or to take one off.'
+  field.append(label, picker.element, hint)
+
+  form.querySelector('.sr-editor-warning')?.after(field)
+  return picker
+}
+
+/**
+ * The elements as picked, for the store. A new first element brings its
+ * own context and way in, read off the page now. One that isn't on the
+ * page has only its name to go by.
+ */
+function elementsEdit(comment: ReviewComment, picker: Picker): ElementsEdit {
+  const [first, ...rest] = picker.picked()
+  const targets = [first, ...rest].map(({ selector, name }) => ({ selector, name }))
+  if (first.selector === comment.selector) {
+    return { targets, context: comment.context, openWith: comment.openWith ?? [] }
+  }
+
+  const el = first.el?.isConnected ? first.el : null
+  return {
+    targets,
+    context: el
+      ? captureContext(el)
+      : {
+          name: first.name,
+          tagName: '',
+          text: first.name.label,
+          nearbyText: '',
+          viewport: comment.context.viewport,
+        },
+    openWith: el ? wayInFor(el, comment.url) : (comment.openWith ?? []),
   }
 }
 
